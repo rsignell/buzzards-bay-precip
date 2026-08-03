@@ -1,0 +1,38 @@
+{
+  "MA-BR-14": {
+    "stationId": 44171,
+    "stationName": "Dartmouth 2.5 SSW",
+    "latitude": 41.534589,
+    "longitude": -71.021972
+  },
+  "MA-BR-18": {
+    "stationId": 55054,
+    "stationName": "Fairhaven 2.2 ESE",
+    "latitude": 41.6219,
+    "longitude": -70.8667
+  },
+  "MA-BR-52": {
+    "stationId": 70287,
+    "stationName": "New Bedford 4.3 N",
+    "latitude": 41.72305,
+    "longitude": -70.944
+  },
+  "MA-BR-79": {
+    "stationId": 87708,
+    "stationName": "Fairhaven 1.9 ENE",
+    "latitude": 41.64602,
+    "longitude": -70.86737
+  },
+  "MA-PL-63": {
+    "stationId": 88428,
+    "stationName": "Wareham 5.6 NE",
+    "latitude": 41.800413009,
+    "longitude": -70.632944092
+  },
+  "MA-PL-66": {
+    "stationId": 92549,
+    "stationName": "Marion 1.3 N",
+    "latitude": 41.7223161,
+    "longitude": -70.7591872
+  }
+}

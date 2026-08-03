@@ -1,0 +1,200 @@
+{
+  "MA-BA-46": {
+    "stationId": 58403,
+    "stationName": "East Falmouth 0.2 ESE",
+    "latitude": 41.57692,
+    "longitude": -70.55556
+  },
+  "MA-DK-26": {
+    "stationId": 106531,
+    "stationName": "Edgartown 0.6 S",
+    "latitude": 41.417669,
+    "longitude": -70.579114
+  },
+  "MA-BA-115": {
+    "stationId": 110624,
+    "stationName": "Pocasset 1.0 NNW",
+    "latitude": 41.6994,
+    "longitude": -70.6222
+  },
+  "MA-PL-54": {
+    "stationId": 79658,
+    "stationName": "Plymouth 12.5 SSE",
+    "latitude": 41.802137,
+    "longitude": -70.556311
+  },
+  "MA-BA-13": {
+    "stationId": 34240,
+    "stationName": "Falmouth 0.6 NNW",
+    "latitude": 41.5538,
+    "longitude": -70.6115
+  },
+  "MA-BA-2": {
+    "stationId": 23571,
+    "stationName": "Falmouth 3.1 NNW",
+    "latitude": 41.5871,
+    "longitude": -70.6321
+  },
+  "MA-BA-3": {
+    "stationId": 23658,
+    "stationName": "Falmouth 3.0 E",
+    "latitude": 41.553061,
+    "longitude": -70.550358
+  },
+  "MA-BA-17": {
+    "stationId": 34291,
+    "stationName": "East Falmouth 1.2 WNW",
+    "latitude": 41.582808,
+    "longitude": -70.580293
+  },
+  "MA-BA-57": {
+    "stationId": 65292,
+    "stationName": "Falmouth 5.7 N",
+    "latitude": 41.628365,
+    "longitude": -70.623234
+  },
+  "MA-BA-87": {
+    "stationId": 85473,
+    "stationName": "Falmouth 1.5 NNW",
+    "latitude": 41.566667,
+    "longitude": -70.615556
+  },
+  "MA-BA-101": {
+    "stationId": 95983,
+    "stationName": "North Falmouth 1.2 SE",
+    "latitude": 41.6328232,
+    "longitude": -70.614358
+  },
+  "MA-BA-105": {
+    "stationId": 100776,
+    "stationName": "Falmouth 4.9 NNW",
+    "latitude": 41.6104,
+    "longitude": -70.6463
+  },
+  "MA-BA-109": {
+    "stationId": 106150,
+    "stationName": "N Falmouth 0.7 E",
+    "latitude": 41.643684,
+    "longitude": -70.608876
+  },
+  "MA-BA-113": {
+    "stationId": 110351,
+    "stationName": "Falmouth 3.2 WSW",
+    "latitude": 41.53048,
+    "longitude": -70.66651
+  },
+  "MA-BA-117": {
+    "stationId": 111056,
+    "stationName": "Falmouth 4.8 N",
+    "latitude": 41.6145087,
+    "longitude": -70.6233059
+  },
+  "MA-BR-14": {
+    "stationId": 44171,
+    "stationName": "Dartmouth 2.5 SSW",
+    "latitude": 41.534589,
+    "longitude": -71.021972
+  },
+  "MA-BR-18": {
+    "stationId": 55054,
+    "stationName": "Fairhaven 2.2 ESE",
+    "latitude": 41.6219,
+    "longitude": -70.8667
+  },
+  "MA-BR-52": {
+    "stationId": 70287,
+    "stationName": "New Bedford 4.3 N",
+    "latitude": 41.72305,
+    "longitude": -70.944
+  },
+  "MA-BR-72": {
+    "stationId": 86658,
+    "stationName": "Somerset 2.3 NNE",
+    "latitude": 41.7718201,
+    "longitude": -71.1473405
+  },
+  "MA-BR-79": {
+    "stationId": 87708,
+    "stationName": "Fairhaven 1.9 ENE",
+    "latitude": 41.64602,
+    "longitude": -70.86737
+  },
+  "MA-DK-2": {
+    "stationId": 24160,
+    "stationName": "Vineyard Haven 0.8 WSW",
+    "latitude": 41.4433,
+    "longitude": -70.630207
+  },
+  "MA-DK-9": {
+    "stationId": 60766,
+    "stationName": "West Tisbury 0.4 S",
+    "latitude": 41.377984,
+    "longitude": -70.683257
+  },
+  "MA-DK-18": {
+    "stationId": 81072,
+    "stationName": "Oak Bluffs 0.1 SW",
+    "latitude": 41.448967,
+    "longitude": -70.567871
+  },
+  "MA-DK-22": {
+    "stationId": 81279,
+    "stationName": "Edgartown 1.3 WNW",
+    "latitude": 41.3915,
+    "longitude": -70.5522
+  },
+  "MA-DK-25": {
+    "stationId": 92693,
+    "stationName": "West Tisbury 3.6 NE",
+    "latitude": 41.4215,
+    "longitude": -70.6369
+  },
+  "MA-DK-27": {
+    "stationId": 109678,
+    "stationName": "West Tisbury 0.7 NNE",
+    "latitude": 41.391736,
+    "longitude": -70.677022
+  },
+  "MA-PL-63": {
+    "stationId": 88428,
+    "stationName": "Wareham 5.6 NE",
+    "latitude": 41.800413009,
+    "longitude": -70.632944092
+  },
+  "MA-PL-66": {
+    "stationId": 92549,
+    "stationName": "Marion 1.3 N",
+    "latitude": 41.7223161,
+    "longitude": -70.7591872
+  },
+  "MA-BA-50": {
+    "stationId": 60720,
+    "stationName": "Falmouth 5.4 NNE",
+    "latitude": 41.622586,
+    "longitude": -70.582703
+  },
+  "MA-BA-112": {
+    "stationId": 109354,
+    "stationName": "North Falmouth 1.0 NE",
+    "latitude": 41.651097,
+    "longitude": -70.619223
+  },
+  "MA-BR-8": {
+    "stationId": 23875,
+    "stationName": "Dighton 1.1 WSW",
+    "latitude": 41.811981,
+    "longitude": -71.136479
+  },
+  "MA-DK-23": {
+    "stationId": 81499,
+    "stationName": "West Tisbury 2.6 NNE",
+    "latitude": 41.419557,
+    "longitude": -70.669831
+  },
+  "MA-PL-2": {
+    "stationId": 23496,
+    "stationName": "Sagamore Beach 1.0 NW",
+    "latitude": 41.8096,
+    "longitude": -70.558075
+  }
+}
