@@ -1,17 +1,21 @@
-# Buzzards Bay precip comparison: IMERG vs. AORC vs. CoCoRaHS
+# Buzzards Bay precip comparison: IMERG vs. AORC vs. HRRR vs. CoCoRaHS
 
-This started from a simple question while working on a [New Bedford, MA
-combined sewer overflow (CSO) discharge analysis](new_bedford_cso_analysis.ipynb):
-how good is the rain-gauge data (`rainfall_in`) in MassDEP's CSO discharge
-reports, and how does it compare to modern gridded precipitation products?
-That led to comparing three very different precipitation data sources over
-the Buzzards Bay watershed:
+This started from a simple question while working on a New Bedford, MA
+combined sewer overflow (CSO) discharge analysis (now its own repo,
+[`rsignell/cso`](https://github.com/rsignell/cso)): how good is the
+rain-gauge data (`rainfall_in`) in MassDEP's CSO discharge reports, and how
+does it compare to modern gridded precipitation products? That led to
+comparing several very different precipitation data sources over the
+Buzzards Bay watershed:
 
 - **[NASA IMERG Analysis-Late](https://dynamical.org/catalog/nasa-imerg-analysis-late/)**
   — global satellite precip, 0.1° (~10 km), half-hourly, 1998-present.
 - **[NOAA AORC](https://registry.opendata.aws/noaa-nws-aorc/)** (Analysis of
   Record for Calibration) — CONUS radar/gauge blend, bias-corrected, ~800 m
   (1 km grid), hourly, 1979-present (currently through 2025 in Zarr form).
+- **[HRRR forecast-48-hour](https://dynamical.org/)** — NOAA's 3 km
+  convection-allowing model, Day-1 (1–24 h lead) and Day-2 (25–48 h lead)
+  accumulated forecast precip, read from the dynamical.org public Zarr.
 - **[CoCoRaHS](https://www.cocorahs.org/)** — volunteer rain-gauge network,
   daily manual reports.
 
@@ -26,16 +30,18 @@ network-local to the data, not for authentication.
 
 | File | What it is |
 |---|---|
-| `new_bedford_cso_analysis.ipynb`, `new_bedford_cso_discharges*.csv` | The original CSO discharge analysis that motivated this detour (MassDEP CSO Data Portal, "Verified Data Report" events, 2022–2026). |
+| The CSO discharge analysis that motivated this detour | Moved to its own repo, [`rsignell/cso`](https://github.com/rsignell/cso) (MassDEP CSO Data Portal, "Verified Data Report" events). |
 | `compare_precip.py` | Single-point comparison: IMERG vs. AORC vs. CSO-report gauge rainfall at New Bedford, 2025–2026. |
 | `find_stations.py` | Pages through the CoCoRaHS API for one day nationwide, keeps stations inside a Buzzards Bay bounding box. |
-| `pull_cocorahs.py` | Pulls full daily records for the candidate stations from the CoCoRaHS API. |
+| `pull_cocorahs.py` | Pulls full daily records for the curated 16-station Buzzards Bay set from the CoCoRaHS API. |
 | `refilter_stations.py` | Re-tests candidate stations against the actual MassDEP watershed polygon (see below). |
 | `buzzards_bay_watershed.geojson` | MassDEP's official "BUZZARDS BAY" major-basin polygon, pulled from MassGIS. |
 | `compare_buzzards_bay.py` | First pass: CoCoRaHS vs. AORC across the watershed, daily totals. **Has a known timing bug — see below.** |
 | `compare_buzzards_bay_v2.py` | Corrected version: re-buckets AORC into CoCoRaHS's actual 7am–7am Eastern Time accumulation window. |
+| `pull_hrrr_forecast.py` | Pulls HRRR forecast-48-hour precip for the 16 stations, accumulated into Day-1 / Day-2 totals per CoCoRaHS 7am–7am ET reporting day. |
+| `compare_buzzards_bay_hrrr.py` | HRRR Day-1 / Day-2 forecast vs. CoCoRaHS gauge totals on non-zero gauge days. |
 | `plot_station_scatters.py` | Per-station scatter grid (superseded by the plotting built into `compare_buzzards_bay_v2.py`). |
-| `*_comparison*.csv`, `*.png` | Outputs at each stage. |
+| `*_comparison*.csv`, `*_summary.csv`, `*.png` | Outputs at each stage. |
 
 ## Timeline / what we found
 
@@ -88,6 +94,17 @@ matching to each CoCoRaHS report date. The effect was dramatic:
 Most of what looked like "AORC vs. CoCoRaHS disagreement" in the first pass
 was a time-bucketing artifact, not a real difference between the products.
 Once aligned, AORC matches the volunteer gauge network almost exactly.
+
+**5. Adding a forecast product (HRRR).** AORC and IMERG are analyses — they
+see the rain after it falls. `pull_hrrr_forecast.py` / `compare_buzzards_bay_hrrr.py`
+bring in HRRR *forecast* precip at Day-1 (1–24 h lead) and Day-2 (25–48 h
+lead), accumulated into the same 7am–7am ET reporting-day window, from a
+fixed 12Z daily reference cycle. Against non-zero CoCoRaHS gauge days the
+per-station correlations land around r ≈ 0.6–0.8 for both leads (Day-2 is
+not meaningfully worse than Day-1 here), with small mostly-negative biases
+(HRRR slightly under-forecasts the gauge totals). Useful as a lead-time
+signal for CSO risk, but clearly a step down in agreement from the AORC
+analysis. Per-station numbers are in `buzzards_bay_hrrr_summary.csv`.
 
 ## Caveats / open threads
 
