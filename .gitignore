@@ -5,3 +5,5 @@ __pycache__/
 
 # Re-fetchable IIPP raster cache; pull_forest_hosts.py rebuilds it.
 forest/*.tif
+# ~10 MB of base64-embedded rasters; make_forest_map.py rebuilds it.
+forest/*.html
