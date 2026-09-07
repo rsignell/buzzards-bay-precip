@@ -2,3 +2,6 @@
 .jupyter_ystore.db
 .claude/
 __pycache__/
+
+# Re-fetchable IIPP raster cache; pull_forest_hosts.py rebuilds it.
+forest/*.tif
