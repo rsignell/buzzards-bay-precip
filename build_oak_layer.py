@@ -35,11 +35,16 @@ from rasterio.features import geometry_mask
 
 CRS = "EPSG:32619"
 CANOPY_GATE = 0.80   # summer NDVI; see module docstring
-OAK_CUT = 0.30       # index at/above which a pixel reads as oak-bearing
+# Cape-calibrated, not inland-calibrated. Two owner-confirmed oak stands median
+# 0.27 against an inland Oak/hickory stand's 0.43, because Cape oak holds a
+# higher winter floor and the stands carry more pine. At 0.20 the cut keeps 69%
+# of confirmed Cape oak and 16% of pitch pine; 0.25 gives 56% and 7%.
+OAK_CUT = 0.20
 
 SITES = {
-    "confirmed-ish oak (marsh edge)": (41.72656, -70.60387),
-    "Oak/hickory control": (41.72572, -70.53661),
+    "Oak forest A (confirmed)": (41.7297453, -70.6025873),
+    "Oak forest B (confirmed)": (41.7287718, -70.6009114),
+    "Oak/hickory control (inland)": (41.72572, -70.53661),
     "pitch pine control": (41.90640, -70.69646),
     "cranberry bog": (41.7266604, -70.5966575),
 }

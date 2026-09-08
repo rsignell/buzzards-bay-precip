@@ -101,12 +101,15 @@ CATEGORICAL = [
 
 # Marks worth keeping on the map: the ground truth this was validated against.
 PINS = [
-    (41.72656, -70.60387,
-     "Marsh/upland edge — oak index 0.27 over the 50% that is canopy. "
-     "The exact pixel is tidal peat, not forest."),
+    (41.7297453, -70.6025873,
+     "Oak forest A (owner-confirmed) — median 0.32 over 300 m"),
+    (41.7287718, -70.6009114,
+     "Oak forest B (owner-confirmed) — median 0.24 over 300 m; "
+     "BIGMAP maps more pine here than at A, and the index agrees"),
+    (41.72572, -70.53661,
+     "Oak/hickory control, INLAND — 0.43. Not a fair yardstick for the Cape."),
+    (41.90640, -70.69646, "Pitch pine control — 0.09"),
     (41.7266604, -70.5966575, "Cranberry bog — 0.12 (cranberry is evergreen)"),
-    (41.72572, -70.53661, "Oak/hickory control — 0.43"),
-    (41.90640, -70.69646, "Pitch pine control — 0.10"),
 ]
 
 
@@ -293,8 +296,15 @@ HTML_TEMPLATE = r"""<!doctype html>
   <div class="note">
     <b>Oak index</b> = (summer NDVI &minus; leaf-off NDVI), kept only where
     summer NDVI &gt; 0.80 and the soil is not tidal marsh. Sentinel-2 2026,
-    analysed at 10 m, drawn at 20 m. Reference values: pitch pine 0.10,
-    cranberry bog 0.12, Oak/hickory stand 0.43.
+    analysed at 10 m, drawn at 20 m.
+    <br><br>
+    <b>Read it on a Cape scale.</b> Two owner-confirmed oak stands median
+    <b>0.27</b>, not the 0.43 of an inland Oak/hickory stand — Cape oak keeps a
+    higher winter floor (evergreen understory, interspersed pitch pine) and the
+    stands are genuinely more mixed. Their annual NDVI curve is unmistakably
+    deciduous; only the amplitude is smaller. Pitch pine sits at 0.09.
+    So <b>0.20–0.25 is the oak threshold here</b>, not 0.35: at 0.20 you keep
+    69% of confirmed oak and 16% of pitch pine; at 0.25, 56% and 7%.
     <br><br>
     The two ingredients fail in opposite directions, which is why both are
     here. <b>Summer greenness</b> barely tells oak from pine (0.896 vs 0.865)
