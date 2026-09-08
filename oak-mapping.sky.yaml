@@ -1,0 +1,45 @@
+# SkyPilot cluster for the Sentinel-2 oak mapping work.
+#
+#   AWS_PROFILE=esiplab2 sky launch -c oak-mapping oak-mapping.sky.yaml \
+#       --idle-minutes-to-autostop 30
+#
+# us-west-2 is not negotiable: sentinel-cogs lives there, so reads are
+# same-region (free, fast) rather than cross-region egress.
+#
+# m7i.2xlarge is EBS-only by design -- no ephemeral instance store -- so
+# everything written to disk survives a stop/start cycle. 32 GiB is the point
+# of the exercise: one full-domain 10 m NDVI stack is ~3.3 GB, so the whole
+# composite fits in memory and the code stays free of block-looping.
+
+name: oak-mapping
+
+resources:
+  cloud: aws
+  region: us-west-2
+  instance_type: m7i.2xlarge
+  disk_size: 300
+
+workdir: .
+
+setup: |
+  set -euo pipefail
+  echo ">>> installing geospatial stack"
+  pip install --quiet --upgrade pip
+  pip install --quiet \
+    rioxarray rasterio xarray numpy pandas geopandas shapely pyproj \
+    "dask[complete]" odc-stac pystac-client \
+    matplotlib pillow requests boto3 s3fs tqdm
+  echo ">>> versions"
+  python - <<'PY'
+  import rioxarray, xarray, geopandas, dask, odc.stac, pystac_client, rasterio
+  print("  rasterio ", rasterio.__version__)
+  print("  xarray   ", xarray.__version__)
+  print("  geopandas", geopandas.__version__)
+  print("  dask     ", dask.__version__)
+  print("  pystac-client", pystac_client.__version__)
+  PY
+
+run: |
+  echo "=== oak-mapping cluster ready ==="
+  nproc; free -g | head -2; df -h / /home 2>/dev/null | tail -3
+  python -c "import odc.stac; print('odc-stac import ok')"

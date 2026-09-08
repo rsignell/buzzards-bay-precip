@@ -1,0 +1,4 @@
+# The 10 MB self-contained map regenerates from make_forest_map.py; no reason
+# to push it up to the cluster on every sync.
+forest/*.html
+.git
