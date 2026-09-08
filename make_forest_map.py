@@ -67,18 +67,37 @@ CONTINUOUS = [
      "Summer canopy greenness (the gate)", "YlGn", 0.20, 0.95, "", 3, 64, False),
     ("decid", "s2/s2_decid.tif",
      "Deciduous index, ungated", "RdYlGn", -0.10, 0.60, "", 3, 64, False),
+    ("awc", "soil/soil_awc.tif",
+     "Soil water capacity, 0–100 cm (SSURGO)", "YlGnBu", 0, 35, " cm", 1,
+     255, True),
+    ("wtdep", "soil/soil_wtdepth.tif",
+     "Depth to water table, annual min (SSURGO)", "PuBu_r", 0, 150, " cm", 0,
+     255, False),
     ("fhp_oak", "forest/fhp_ba_oak_deciduous_spp.tif",
      "Oak basal area (USFS FHP ~2002)", "YlGn", 0, 80, " sq ft/ac", 0,
      255, True),
 ]
 
-FTG_STYLE = {
-    500: ("#1b5e20", "Oak / hickory"),
-    400: ("#7fb069", "Oak / pine"),
-    100: ("#8c6d3f", "White / red / jack pine"),
-    700: ("#4f9bbf", "Elm / ash / cottonwood"),
-    800: ("#b07aa1", "Maple / beech / birch"),
-}
+# key, path, label, {pixel value: (colour, label)}
+CATEGORICAL = [
+    ("drain", "soil/soil_drainage.tif", "Soil drainage class (SSURGO)", {
+        1: ("#c9871f", "Excessively drained"),
+        2: ("#e0b064", "Somewhat excessively"),
+        3: ("#cfd88c", "Well drained"),
+        4: ("#8fc0a9", "Moderately well"),
+        5: ("#5fa8b8", "Somewhat poorly"),
+        6: ("#3d7ea6", "Poorly drained"),
+        7: ("#254a72", "Very poorly drained"),
+    }),
+    ("ftg", "forest/bigmap_forest_type_group.tif",
+     "Forest type group (BIGMAP 2018)", {
+         500: ("#1b5e20", "Oak / hickory"),
+         400: ("#7fb069", "Oak / pine"),
+         100: ("#8c6d3f", "White / red / jack pine"),
+         700: ("#4f9bbf", "Elm / ash / cottonwood"),
+         800: ("#b07aa1", "Maple / beech / birch"),
+     }),
+]
 
 # Marks worth keeping on the map: the ground truth this was validated against.
 PINS = [
@@ -192,21 +211,28 @@ def main():
               f"{len(layers[key]['img']) / 1e6:4.1f} MB img "
               f"{val_mb:4.1f} MB val")
 
-    ftg = prepare("forest/bigmap_forest_type_group.tif", geom)
-    fv = np.nan_to_num(ftg.values).astype(int)
-    index = np.zeros(fv.shape, dtype="uint8")
-    palette = bytearray(3)
-    for i, (code, (hexcol, _)) in enumerate(FTG_STYLE.items(), start=1):
-        index[fv == code] = i
-        palette += bytes.fromhex(hexcol[1:])
-    layers["ftg"] = {
-        "label": "Forest type group (BIGMAP 2018)", "kind": "categorical",
-        "classes": [{"color": c, "label": l} for c, l in FTG_STYLE.values()],
-        "bounds": bounds_latlon(ftg),
-        "img": data_uri(paletted(index, bytes(palette))), "data": None,
-    }
-    print(f"  {'Forest type group (BIGMAP 2018)':42s} {index.shape[1]}x{index.shape[0]}  "
-          f"{len(layers['ftg']['img']) / 1e6:4.1f} MB img")
+    for key, path, label, style in CATEGORICAL:
+        if not Path(path).exists():
+            print(f"  {label:42s} SKIP (missing {path})")
+            continue
+        da = prepare(path, geom)
+        # Classes are exact integer codes, so round before comparing -- the
+        # reprojection above leaves float values a hair off their code.
+        fv = np.rint(np.nan_to_num(da.values, nan=-1)).astype(int)
+        index = np.zeros(fv.shape, dtype="uint8")
+        palette = bytearray(3)  # index 0 = transparent
+        for i, (code, (hexcol, _)) in enumerate(style.items(), start=1):
+            index[fv == code] = i
+            palette += bytes.fromhex(hexcol[1:])
+        layers[key] = {
+            "label": label, "kind": "categorical",
+            "classes": [{"color": c, "label": l} for c, l in style.values()],
+            "bounds": bounds_latlon(da),
+            "img": data_uri(paletted(index, bytes(palette))), "data": None,
+        }
+        print(f"  {label:42s} {index.shape[1]}x{index.shape[0]}  "
+              f"{len(layers[key]['img']) / 1e6:4.1f} MB img  "
+              f"{100 * (index > 0).mean():.0f}% classified")
 
     outline = json.loads(basins.to_crs(4326).dissolve().to_json())
     html = (HTML_TEMPLATE
@@ -275,6 +301,11 @@ HTML_TEMPLATE = r"""<!doctype html>
     but crushes marsh (0.719) — it is the canopy gate. The <b>ungated
     deciduous index</b> separates oak from pine well but rates salt marsh at
     0.254, near oak, because Spartina also greens and browns.
+    <br><br>
+    <b>SSURGO soil</b> is what turns rainfall into a moisture state. On this
+    outwash 48% of the basin is excessively drained — a soak is gone in days —
+    while the kettle swales beside it hold water for weeks. Water capacity
+    (AWC) is the variable that will set the moisture decay constant.
     <br><br>
     <span class="warn">USFS FHP (~2002) is shown for comparison only. Over this
     domain it reports zero basal area for every species across ground that is
