@@ -1,22 +1,28 @@
 """
 Sentinel-2 deciduous-fraction layer for the Buzzards Bay + Cape Cod watersheds.
 
-Why this exists: both USFS products classify the 50-acre oak forest at
-41.7267, -70.5967 as *non-forest* -- zero modeled basal area for every species,
-across a 500 m box, and BIGMAP calls the site pixel "Non-forest". The most
-likely cause is low-density residential canopy tripping a developed mask, and
-that failure mode covers much of the upper Cape: mature oak with houses under
-it. Which is precisely the ground a forager walks.
+Why this exists: USFS FHP reports zero basal area -- for oak, pitch pine and
+white pine alike -- across the whole neighbourhood of a confirmed ~50-acre
+white/red oak forest at 41.72656, -70.60387, including pixels where BIGMAP maps
+Oak/pine. FHP is a national model keyed on climate, terrain and soils, and on
+flat, climatically uniform, uniformly sandy Cape Cod those predictors carry
+almost no local signal.
 
 So this layer inherits no one else's land-cover classification. It measures
 leaf-on / leaf-off phenology directly from surface reflectance:
 
     decid = NDVI(summer median) - NDVI(leaf-off median)
 
-Oak canopy swings hard across that pair (roughly 0.85 -> 0.25); pitch and white
-pine barely move (roughly 0.75 -> 0.65). On this landscape the difference is
-very nearly a pure oak map, because the deciduous canopy here is overwhelmingly
-Quercus -- red maple in the wet swales being the main confuser.
+Oak canopy swings hard across that pair; pitch and white pine barely move. On
+this landscape the difference is very nearly a pure oak map, because the
+deciduous canopy here is overwhelmingly Quercus -- red maple in the wet swales
+being the main confuser. Measured over ~50-acre circles: pine control 0.11,
+cranberry bog 0.13, the confirmed oak site 0.33, a pure Oak/hickory control
+0.43.
+
+(Cranberry bogs are worth calling out: cranberry is an EVERGREEN dwarf shrub,
+so a bog holds NDVI ~0.75 all winter and reads as strongly non-deciduous. Given
+how much of this landscape is bog, that is a useful property, not a nuisance.)
 
 Two details that matter for correctness:
   * The STAC metadata advertises a BOA_ADD_OFFSET that the delivered pixels do
@@ -42,6 +48,7 @@ from pathlib import Path
 import numpy as np
 import odc.stac
 import rioxarray  # noqa: F401  (registers .rio accessor)
+import xarray as xr
 from odc.geo.geobox import GeoBox
 from pystac_client import Client
 
@@ -59,8 +66,16 @@ CRS = "EPSG:32619"
 RES = 10
 BBOX_LL = [-71.20, 41.43, -69.87, 42.16]
 
+# The leaf-off window is wide on purpose. Feb 15 - Mar 31 looks like the
+# obvious choice and is the worst of the five tested (tune_leafoff_window.py):
+# it left a median of ONE valid observation at the confirmed oak site, and at
+# the pine control it caught snow and low-sun-angle scenes whose depressed NDVI
+# made pine look deciduous. Widening to Nov 15 - Apr 15 gives ~7 observations
+# and lets the median reject those outliers, which nearly doubles the
+# oak-vs-pine separation (0.178 -> 0.326). Oaks here are bare by mid-November
+# and do not leaf out until mid-May, so the window stays genuinely leaf-off.
 WINDOWS = {
-    "leafoff": ("2026-02-15", "2026-03-31"),
+    "leafoff": ("2025-11-15", "2026-04-15"),
     "summer": ("2026-07-01", "2026-08-15"),
 }
 MAX_CLOUD = 40  # permissive; per-pixel SCL masking does the real work
@@ -94,6 +109,10 @@ SCALE = 0.0001
 # both far above this.
 MIN_DENOM = 0.05
 
+# Rows per block in composite(). 1024 rows x 10590 px x 33 dates x 3 bands of
+# uint16 is ~2 GB, which leaves plenty of headroom on a 32 GiB box.
+BLOCK_ROWS = 1024
+
 OUTDIR = Path("s2")
 
 
@@ -115,34 +134,60 @@ def search(window):
 
 
 def composite(items, gbox):
-    """Cloud-masked median NDVI over the window, plus valid-obs count."""
-    ds = odc.stac.load(
-        items,
-        bands=("red", "nir", "scl"),
-        geobox=gbox,
-        groupby="solar_day",  # mosaics the 4 MGRS tiles within each date
-        resampling="nearest",
-        chunks={"time": -1, "x": 2048, "y": 2048},
-        dtype="uint16",
-        nodata=0,
-    )
-    print(f"           stack {dict(ds.sizes)}")
+    """Cloud-masked median NDVI over the window, plus valid-obs count.
 
-    good = ds.scl.isin(SCL_KEEP)
+    Processed in horizontal blocks rather than as one dask graph. With a wide
+    leaf-off window the stack is ~33 dates x 75 Mpx x 3 bands, which is ~15 GB
+    of uint16 before any float intermediates -- enough to OOM a 32 GiB box. The
+    first attempt did exactly that, and the kill was not clean: GDAL had already
+    flushed partial output, so the GeoTIFFs looked valid, carried a sane CRS and
+    a plausible value distribution, but were silently WRONG (at the reference
+    site the raster said 1 valid observation and NDVI 0.439 where a direct
+    small-window computation gives 7 and 0.495). Blocking keeps peak memory at a
+    couple of GB and makes the result trustworthy.
+    """
+    ny, nx = gbox.shape
+    out = np.full((ny, nx), np.nan, dtype="float32")
+    nobs = np.zeros((ny, nx), dtype="int16")
 
-    def reflectance(band):
-        # DN 0 is the nodata flag. Use .where() rather than xr.where(), which
-        # silently drops the spatial_ref coord and leaves the written GeoTIFF
-        # with no CRS.
-        return band.where(band > 0).astype("float32") * SCALE
+    for y0 in range(0, ny, BLOCK_ROWS):
+        y1 = min(y0 + BLOCK_ROWS, ny)
+        sub = gbox[y0:y1, 0:nx]
+        ds = odc.stac.load(
+            items,
+            bands=("red", "nir", "scl"),
+            geobox=sub,
+            groupby="solar_day",  # mosaics the 4 MGRS tiles within each date
+            resampling="nearest",
+            dtype="uint16",
+            nodata=0,
+        )
+        good = ds.scl.isin(SCL_KEEP)
 
-    red = reflectance(ds.red).where(good)
-    nir = reflectance(ds.nir).where(good)
+        def reflectance(band):
+            # DN 0 is the nodata flag. Use .where() rather than xr.where(),
+            # which silently drops the spatial_ref coord and leaves the written
+            # GeoTIFF with no CRS.
+            return band.where(band > 0).astype("float32") * SCALE
 
-    denom = nir + red
-    ndvi = ((nir - red) / denom).where(denom > MIN_DENOM).clip(-1, 1)
+        red = reflectance(ds.red).where(good)
+        nir = reflectance(ds.nir).where(good)
+        denom = nir + red
+        ndvi = ((nir - red) / denom).where(denom > MIN_DENOM).clip(-1, 1)
 
-    return ndvi.median("time", skipna=True), ndvi.notnull().sum("time")
+        out[y0:y1] = ndvi.median("time", skipna=True).values
+        nobs[y0:y1] = ndvi.notnull().sum("time").values.astype("int16")
+        ndates = ds.sizes["time"]
+        del ds, good, red, nir, denom, ndvi
+        print(f"             rows {y0:5d}-{y1:5d}  {ndates:2d} dates  "
+              f"median obs {int(np.median(nobs[y0:y1]))}", flush=True)
+
+    coords = {"y": gbox.coordinates["y"].values, "x": gbox.coordinates["x"].values}
+
+    def wrap(a):
+        return xr.DataArray(a, dims=("y", "x"), coords=coords).odc.assign_crs(CRS)
+
+    return wrap(out), wrap(nobs)
 
 
 def main():
@@ -157,11 +202,9 @@ def main():
         items = search(window)
         if not items:
             sys.exit(f"no items for {window}")
+        print("           compositing by block ...", flush=True)
         ndvi, nobs = composite(items, gbox)
 
-        print(f"           computing median ...", flush=True)
-        ndvi = ndvi.compute().odc.assign_crs(CRS)
-        nobs = nobs.compute().odc.assign_crs(CRS)
         out[window] = ndvi
 
         ndvi.odc.write_cog(OUTDIR / f"s2_ndvi_{window}.tif", overwrite=True)
@@ -208,11 +251,26 @@ def basin_geom():
     return _BASIN
 
 
+_MASK = None
+
+
+def basin_mask(da):
+    """Boolean basin mask on the grid, rasterised once and reused."""
+    global _MASK
+    if _MASK is None:
+        from rasterio.features import geometry_mask
+
+        _MASK = ~geometry_mask(
+            [basin_geom()], out_shape=da.shape,
+            transform=da.rio.transform(), invert=False)
+    return _MASK
+
+
 def basin_only(da):
     """Finite values inside the basins. The bbox is two-thirds ocean, so
     whole-grid statistics are dominated by water and say nothing useful."""
-    v = da.rio.clip([basin_geom()], CRS, drop=False).values
-    return v[np.isfinite(v)]
+    v = da.values
+    return v[basin_mask(da) & np.isfinite(v)]
 
 
 if __name__ == "__main__":
