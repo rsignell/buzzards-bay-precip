@@ -9,3 +9,5 @@ forest/*.tif
 forest/*.html
 # Large S2 rasters live on the oak-mapping cluster; s2_deciduous.py rebuilds them.
 s2/*.tif
+# Rasterised from Soil Data Access; pull_soil.py rebuilds them.
+soil/*.tif
