@@ -5,12 +5,16 @@ Pull it up over ground you have walked, flip to the satellite basemap, and see
 whether the layers match the canopy you recognise. That check is what the whole
 foraging model rests on.
 
-The headline layer is now the Sentinel-2 deciduous index, which measures
+The headline layer is the canopy-gated Sentinel-2 oak index, which measures
 leaf-on/leaf-off phenology directly instead of inheriting anyone's land-cover
-classification. The USFS layers are kept alongside it deliberately, because
-over this domain they are a cautionary tale rather than a reference: FHP
-reports zero basal area for every species across a confirmed 50-acre oak
-forest, and flipping between the two layers shows exactly where it gives up.
+classification. Its two ingredients are kept as separate layers because they
+fail in opposite directions and flipping between them shows how: summer
+greenness barely tells oak from pine but crushes salt marsh, while the ungated
+deciduous index separates oak from pine cleanly and rates marsh near oak.
+
+FHP is kept alongside as a cautionary tale rather than a reference -- over this
+domain it reports zero basal area for every species across ground that is
+demonstrably forest.
 
 Reads GeoTIFFs from forest/ (30 m) and s2/ (10 m), reprojects to Web Mercator
 and bakes everything into one self-contained HTML file: no server, no tile
@@ -56,17 +60,16 @@ S2_DISPLAY_RES = 20  # metres; see module docstring
 # adds the hidden greyscale value twin, which doubles a layer's cost -- worth it
 # for the two layers whose numbers you actually want to read, not for the rest.
 CONTINUOUS = [
-    ("decid", "s2/s2_decid.tif",
-     "Oak / deciduous index (Sentinel-2 2026)", "RdYlGn", -0.10, 0.60, "", 3,
+    ("oak", "s2/oak_index.tif",
+     "Oak index (Sentinel-2, canopy-gated)", "RdYlGn", -0.10, 0.60, "", 3,
      64, True),
     ("summer", "s2/s2_ndvi_summer.tif",
-     "Summer canopy greenness (NDVI)", "YlGn", 0.20, 0.95, "", 3, 64, False),
+     "Summer canopy greenness (the gate)", "YlGn", 0.20, 0.95, "", 3, 64, False),
+    ("decid", "s2/s2_decid.tif",
+     "Deciduous index, ungated", "RdYlGn", -0.10, 0.60, "", 3, 64, False),
     ("fhp_oak", "forest/fhp_ba_oak_deciduous_spp.tif",
      "Oak basal area (USFS FHP ~2002)", "YlGn", 0, 80, " sq ft/ac", 0,
      255, True),
-    ("fhp_pine", "forest/fhp_ba_pitch_pine.tif",
-     "Pitch pine basal area (USFS FHP ~2002)", "Oranges", 0, 50, " sq ft/ac", 0,
-     255, False),
 ]
 
 FTG_STYLE = {
@@ -79,10 +82,12 @@ FTG_STYLE = {
 
 # Marks worth keeping on the map: the ground truth this was validated against.
 PINS = [
-    (41.72656, -70.60387, "Confirmed oak forest (~50 ac) — index 0.30"),
-    (41.7266604, -70.5966575, "Cranberry bog — index 0.12 (evergreen)"),
-    (41.72572, -70.53661, "Oak/hickory control — index 0.43"),
-    (41.90640, -70.69646, "Pitch pine control — index 0.09"),
+    (41.72656, -70.60387,
+     "Marsh/upland edge — oak index 0.27 over the 50% that is canopy. "
+     "The exact pixel is tidal peat, not forest."),
+    (41.7266604, -70.5966575, "Cranberry bog — 0.12 (cranberry is evergreen)"),
+    (41.72572, -70.53661, "Oak/hickory control — 0.43"),
+    (41.90640, -70.69646, "Pitch pine control — 0.10"),
 ]
 
 
@@ -260,14 +265,20 @@ HTML_TEMPLATE = r"""<!doctype html>
   <div id="legend"></div>
   <div class="readout" id="readout">Click the map to read a value.</div>
   <div class="note">
-    <b>Deciduous index</b> = summer NDVI &minus; leaf-off NDVI, Sentinel-2
-    2026, analysed at 10 m and drawn at 20 m. Calibrated on ~50-acre circles:
-    pitch pine 0.09, cranberry bog 0.12, a confirmed oak forest 0.30, a pure
-    Oak/hickory stand 0.43. Cranberry is evergreen, so bogs read low.
+    <b>Oak index</b> = (summer NDVI &minus; leaf-off NDVI), kept only where
+    summer NDVI &gt; 0.80 and the soil is not tidal marsh. Sentinel-2 2026,
+    analysed at 10 m, drawn at 20 m. Reference values: pitch pine 0.10,
+    cranberry bog 0.12, Oak/hickory stand 0.43.
+    <br><br>
+    The two ingredients fail in opposite directions, which is why both are
+    here. <b>Summer greenness</b> barely tells oak from pine (0.896 vs 0.865)
+    but crushes marsh (0.719) — it is the canopy gate. The <b>ungated
+    deciduous index</b> separates oak from pine well but rates salt marsh at
+    0.254, near oak, because Spartina also greens and browns.
     <br><br>
     <span class="warn">USFS FHP (~2002) is shown for comparison only. Over this
-    domain it reports zero basal area for every species across a confirmed
-    50-acre oak forest — do not trust it here.</span>
+    domain it reports zero basal area for every species across ground that is
+    demonstrably forest — do not trust it here.</span>
   </div>
 </div>
 <script>
