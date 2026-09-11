@@ -11,3 +11,10 @@ forest/*.html
 s2/*.tif
 # Rasterised from Soil Data Access; pull_soil.py rebuilds them.
 soil/*.tif
+
+# Per-species score rasters; score_species.py rebuilds them.
+scores/*.tif
+# Moisture state; mrms_moisture.py rebuilds it.
+moisture/*.tif
+# The app itself; make_foraging_app.py rebuilds it.
+app/*.html

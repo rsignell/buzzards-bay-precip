@@ -118,16 +118,20 @@ def main():
 
     # --- attributes, one query -------------------------------------------- #
     keys = ",".join(f"'{k}'" for k in sorted(gdf.mukey.unique()))
-    att = sda(f"""SELECT mukey, muname, drclassdcd, aws0100wta, wtdepannmin,
- hydgrpdcd FROM muaggatt WHERE mukey IN ({keys})""")
+    att = sda(f"""SELECT mukey, muname, drclassdcd, aws025wta, aws0100wta,
+ wtdepannmin, hydgrpdcd FROM muaggatt WHERE mukey IN ({keys})""")
     att["mukey"] = att.mukey.astype(str)
     att["awc"] = pd.to_numeric(att.aws0100wta, errors="coerce")
+    # 0-25 cm is the layer that governs fungal fruiting: mycelium and litter sit
+    # in the top few inches, and that layer wets and dries far faster than the
+    # full 1 m root zone. It is what the moisture model buckets.
+    att["awc25"] = pd.to_numeric(att.aws025wta, errors="coerce")
     att["wtdep"] = pd.to_numeric(att.wtdepannmin, errors="coerce")
     att["drain"] = att.drclassdcd.map(DRAINAGE)
     print(f"attributes for {len(att)} map units "
           f"({att.drain.notna().sum()} with a drainage class)")
 
-    gdf = gdf.merge(att[["mukey", "muname", "awc", "wtdep", "drain"]],
+    gdf = gdf.merge(att[["mukey", "muname", "awc", "awc25", "wtdep", "drain"]],
                     on="mukey", how="left")
 
     # --- rasterise --------------------------------------------------------- #
@@ -139,6 +143,7 @@ def main():
 
     for name, col, dtype, nodata in [
         ("soil_awc", "awc", "float32", np.nan),
+        ("soil_awc25", "awc25", "float32", np.nan),
         ("soil_drainage", "drain", "float32", np.nan),
         ("soil_wtdepth", "wtdep", "float32", np.nan),
     ]:

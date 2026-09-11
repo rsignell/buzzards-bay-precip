@@ -1,0 +1,17 @@
+{
+  "as_of": "2026-09-11",
+  "day_ends_utc": "12:00",
+  "first_day": "2026-07-14",
+  "n_days": 150,
+  "spinup_days": 90,
+  "source": "MRMS precipitation_surface (radar/gauge QPE), dynamical.org icechunk",
+  "capacity": "SSURGO available water storage 0-25 cm",
+  "parameters": {
+    "throughfall": 0.85,
+    "pet_mean": 2.35,
+    "pet_amp": 2.05,
+    "soak_mm": 12.7,
+    "min_capacity_mm": 8.0
+  },
+  "calibrated": false
+}
