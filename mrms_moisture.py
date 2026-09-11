@@ -215,14 +215,29 @@ def main():
             soaked = P[n][i, j] >= SOAK_MM
             last_soak = np.where(soaked, 0.0, last_soak + 1.0)
 
-    sm_stack = np.stack(keep)                   # (<=21, ny, nx)
-    print(f"  soil moisture now: median {np.nanmedian(sm_stack[-1]):.2f}, "
-          f"p10 {np.nanpercentile(sm_stack[-1], 10):.2f}, "
-          f"p90 {np.nanpercentile(sm_stack[-1], 90):.2f}")
+    # Accumulate the trailing means in place rather than np.stack-ing the
+    # deque: stacking 21 arrays of 8.3 M float32 copies ~700 MB on top of the
+    # deque already holding it, which is the difference between this fitting
+    # comfortably on a 6 GB laptop and not.
+    arrs = list(keep)
 
-    write(sm_stack[-1], "sm_now", transform)
+    def trailing_mean(w):
+        acc = np.zeros(shape, dtype="float32")
+        cnt = np.zeros(shape, dtype="int16")
+        for a in arrs[-w:]:
+            m = np.isfinite(a)
+            acc[m] += a[m]
+            cnt[m] += 1
+        return np.where(cnt > 0, acc / np.maximum(cnt, 1), np.nan)
+
+    now = arrs[-1]
+    print(f"  soil moisture now: median {np.nanmedian(now):.2f}, "
+          f"p10 {np.nanpercentile(now, 10):.2f}, "
+          f"p90 {np.nanpercentile(now, 90):.2f}")
+
+    write(now, "sm_now", transform)
     for w in (7, 14, 21):
-        write(np.nanmean(sm_stack[-w:], axis=0), f"sm_mean_{w}", transform)
+        write(trailing_mean(w), f"sm_mean_{w}", transform)
     write(last_soak, "days_since_soak", transform)
 
     # --- rain windows: 1 km, then upsampled -------------------------------- #
