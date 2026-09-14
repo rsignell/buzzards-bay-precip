@@ -4,8 +4,9 @@ MA south-coast region for a single CoCoRaHS reporting day (7am ET -> 7am ET).
 
 - Observed  : every CoCoRaHS station inside the map extent that filed a report
               for the day -- roster from region_cocorahs_stations.csv (built by
-              find_region_stations.py). The curated 16-station Buzzards Bay
-              watershed set is flagged and drawn with a heavier outline.
+              find_region_stations.py). Every station is drawn the same way;
+              the curated 16-station Buzzards Bay watershed set is still
+              flagged in the csv and in the printed summary.
 - Modeled   : NOAA MRMS CONUS analysis, hourly -- the radar/gauge-corrected
               ~1 km QPE (`precipitation_surface`, MultiSensor_QPE_01H Pass-2),
               from the dynamical.org public Icechunk/Zarr store on AWS.
@@ -182,9 +183,9 @@ print(f"MRMS grid over box: min={float(mrms_in.min()):.2f}  max={float(mrms_in.m
 cmax = float(np.ceil(max(mrms_in.max(), obs["obs_in"].max(), obs["mrms_in"].max()) * 10) / 10)
 CMAP = "YlGnBu"
 BB_COLOR, CC_COLOR = "#444444", "#c1440e"
+GAUGE_COLOR = "#4c78a8"   # scatter marker fill
 title = (f"24-h rainfall  {WINDOW_LABEL}   ({len(obs)} CoCoRaHS stations)\n"
-         "MRMS radar/gauge 1 km QPE (shaded) vs CoCoRaHS gauges "
-         "(circles; squares = curated Buzzards Bay 16)\n"
+         "MRMS radar/gauge 1 km QPE (shaded) vs CoCoRaHS gauges (circles)\n"
          "MassDEP basins: Buzzards Bay (gray solid), Cape Cod (orange dashed)")
 
 raster = mrms_in.hvplot.quadmesh(
@@ -203,18 +204,13 @@ cape_boundary = gpd.GeoDataFrame(geometry=[cape.union_all()], crs=4326).hvplot(
 )
 
 HOVER = ["stationNumber", "stationName", "obs_in", "mrms_in", "diff_in"]
-pts_other = obs[~obs["in_curated_16"]].hvplot.points(
+pts = obs.hvplot.points(
     x="longitude", y="latitude", geo=True, c="obs_in", cmap=CMAP,
-    clim=(0, cmax), s=170, marker="o", line_color="black", line_width=0.7,
-    hover_cols=HOVER, colorbar=False,
-)
-pts_curated = obs[obs["in_curated_16"]].hvplot.points(
-    x="longitude", y="latitude", geo=True, c="obs_in", cmap=CMAP,
-    clim=(0, cmax), s=430, marker="s", line_color="black", line_width=2.2,
+    clim=(0, cmax), s=200, marker="o", line_color="black", line_width=0.9,
     hover_cols=HOVER, colorbar=False,
 )
 
-hvplot_map = (raster * boundary * cape_boundary * pts_other * pts_curated).opts(
+hvplot_map = (raster * boundary * cape_boundary * pts).opts(
     active_tools=["wheel_zoom"]
 )
 hv.save(hvplot_map, "buzzards_bay_mrms_map.html")
@@ -230,19 +226,13 @@ shed.boundary.plot(ax=ax, color=BB_COLOR, linewidth=1.2,
                    label="Buzzards Bay basin (MassDEP)")
 cape.boundary.plot(ax=ax, color=CC_COLOR, linewidth=1.2, linestyle="--",
                    label="Cape Cod basin (MassDEP)")
-other = obs[~obs["in_curated_16"]]
-cur = obs[obs["in_curated_16"]]
-ax.scatter(other["longitude"], other["latitude"], c=other["obs_in"], cmap=CMAP,
-           vmin=0, vmax=cmax, s=80, marker="o", edgecolors="black",
-           linewidths=0.8, zorder=5)
-ax.scatter(cur["longitude"], cur["latitude"], c=cur["obs_in"], cmap=CMAP,
-           vmin=0, vmax=cmax, s=230, marker="s", edgecolors="black",
-           linewidths=1.8, zorder=6)
+ax.scatter(obs["longitude"], obs["latitude"], c=obs["obs_in"], cmap=CMAP,
+           vmin=0, vmax=cmax, s=100, marker="o", edgecolors="black",
+           linewidths=0.9, zorder=5)
 ax.legend(loc="upper left", fontsize=8, framealpha=0.9)
 for _, row in obs.iterrows():
     ax.annotate(f"{row['obs_in']:.2f}", (row["longitude"], row["latitude"]),
                 xytext=(5, 3), textcoords="offset points", fontsize=6.5,
-                fontweight="bold" if row["in_curated_16"] else "normal",
                 zorder=7)
 ax.set_xlim(lon0, lon1)
 ax.set_ylim(lat0, lat1)
@@ -257,22 +247,17 @@ print("Saved buzzards_bay_mrms_map.png")
 fig2, ax2 = plt.subplots(figsize=(5.8, 5.8))
 lim = cmax
 ax2.plot([0, lim], [0, lim], "k--", lw=1)
-ax2.scatter(other["obs_in"], other["mrms_in"], s=38, c="#4c78a8",
-            label=f"other region stations (n={len(other)})")
-ax2.scatter(cur["obs_in"], cur["mrms_in"], s=70, marker="s", c="#c1440e",
-            label=f"curated Buzzards Bay 16 (n={len(cur)})")
-for _, row in cur.iterrows():
-    ax2.annotate(row["stationNumber"].replace("MA-", ""),
-                 (row["obs_in"], row["mrms_in"]), fontsize=7,
-                 xytext=(4, 2), textcoords="offset points")
+ax2.scatter(obs["obs_in"], obs["mrms_in"], s=45, marker="o", c=GAUGE_COLOR,
+            edgecolors="white", linewidths=0.5,
+            label=f"CoCoRaHS stations (n={len(obs)})")
 ax2.set_xlim(0, lim)
 ax2.set_ylim(0, lim)
 ax2.set_xlabel("CoCoRaHS gauge (inch)")
 ax2.set_ylabel("MRMS radar/gauge QPE (inch)")
 ax2.legend(loc="lower right", fontsize=8)
 ax2.set_title(f"24-h rainfall  {SCATTER_LABEL}\n"
-              f"all {len(obs)}: r={r:.2f}, bias={bias:+.2f} in\n"
-              f"curated 16: r={r16:.2f}, bias={bias16:+.2f} in", fontsize=10)
+              f"all {len(obs)} stations: r={r:.2f}, bias={bias:+.2f} in",
+              fontsize=10)
 fig2.tight_layout()
 fig2.savefig("buzzards_bay_mrms_scatter.png", dpi=140)
 print("Saved buzzards_bay_mrms_scatter.png")
