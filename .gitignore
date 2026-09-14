@@ -18,3 +18,5 @@ scores/*.tif
 moisture/*.tif
 # The app itself; make_foraging_app.py rebuilds it.
 app/*.html
+# ~1 MB of base64-embedded tiles; compare_buzzards_bay_mrms.py rebuilds it.
+buzzards_bay_mrms_map.html
