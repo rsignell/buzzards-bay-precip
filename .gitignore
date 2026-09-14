@@ -18,5 +18,13 @@ scores/*.tif
 moisture/*.tif
 # The app itself; make_foraging_app.py rebuilds it.
 app/*.html
-# ~1 MB of base64-embedded tiles; compare_buzzards_bay_mrms.py rebuilds it.
-buzzards_bay_mrms_map.html
+
+# Derived outputs at the repo root -- tables, figures and interactive maps that
+# the scripts above rebuild from the CoCoRaHS API, MRMS and HRRR. Regenerating
+# a day's worth is a couple of minutes, so they are not worth versioning; the
+# interactive maps in particular are ~1 MB of base64-embedded tiles each.
+# Scoped to the root on purpose: forest/ and s2/ products stay tracked, since
+# rebuilding those needs the oak-mapping cluster.
+/*.csv
+/*.png
+/*.html
