@@ -1,0 +1,59 @@
+{
+  "version": "0.1.0",
+  "name": "Buzzards Bay Basins",
+  "mapView": {
+    "center": [-70.8435, 41.6769],
+    "zoom": 10.2,
+    "bearing": 0,
+    "pitch": 0,
+    "bbox": [-71.1682, 41.4106, -70.5188, 41.9432]
+  },
+  "basemapStyleUrl": "https://tiles.openfreemap.org/styles/positron",
+  "basemapVisible": true,
+  "basemapOpacity": 1,
+  "layers": [
+    {
+      "id": "buzzards-bay-basins",
+      "name": "Buzzards Bay Basins",
+      "type": "geojson",
+      "source": { "type": "geojson" },
+      "visible": true,
+      "opacity": 0.75,
+      "style": {
+        "minZoom": 0,
+        "maxZoom": 24,
+        "fillColor": "#2563eb",
+        "strokeColor": "#1e3a8a",
+        "strokeWidth": 1.5,
+        "strokeWidthUnit": "pixels",
+        "fillOpacity": 0.35,
+        "circleRadius": 6,
+        "rasterBrightnessMin": 0,
+        "rasterBrightnessMax": 1,
+        "rasterSaturation": 0,
+        "rasterContrast": 0,
+        "rasterHueRotate": 0
+      },
+      "metadata": {},
+      "geojson": { "type": "FeatureCollection", "features": [] },
+      "sourcePath": "https://raw.githubusercontent.com/rsignell/buzzards-bay-precip/main/basins/bbnep_subbasins_2026.geojson"
+    }
+  ],
+  "styles": {
+    "buzzards-bay-basins": {
+      "minZoom": 0,
+      "maxZoom": 24,
+      "fillColor": "#2563eb",
+      "strokeColor": "#1e3a8a",
+      "strokeWidth": 1.5,
+      "strokeWidthUnit": "pixels",
+      "fillOpacity": 0.35,
+      "circleRadius": 6,
+      "rasterBrightnessMin": 0,
+      "rasterBrightnessMax": 1,
+      "rasterSaturation": 0,
+      "rasterContrast": 0,
+      "rasterHueRotate": 0
+    }
+  }
+}
