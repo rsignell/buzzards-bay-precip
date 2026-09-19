@@ -99,6 +99,7 @@ def load_basins(path):
     g = gpd.read_file(path).to_crs(4326)
     g["basin_id"] = g["BBP_SYS_ID"] + "_" + g["TYPE"]
     assert g["basin_id"].is_unique, "basin_id collision"
+    assert set(g["TYPE"]) <= {"LAND", "WATER"}, set(g["TYPE"])
     g = g.rename(columns={"BBP_SYS_ID": "sys_id", "TYPE": "type"})
     return g[["basin_id", "sys_id", "type", "geometry"]]
 
@@ -246,8 +247,8 @@ def main():
             secs = len(stamps) * 3600.0
             vol = depth_mm / 1000.0 * poly_area_m2
             frames.append(pd.DataFrame({
-                "report_date": d, "basin_id": basins.basin_id.values,
-                "sys_id": basins.sys_id.values, "type": basins.type.values,
+                "report_date": d, "basin_id": basins["basin_id"].values,
+                "sys_id": basins["sys_id"].values, "type": basins["type"].values,
                 "precip_mm": np.round(depth_mm, 3),
                 "precip_in": np.round(depth_mm / 25.4, 4),
                 "volume_m3": np.round(vol, 1),
