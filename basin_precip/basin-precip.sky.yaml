@@ -1,0 +1,48 @@
+# Daily MRMS precip per Buzzards Bay v2 basin -> GeoParquet -> Cloudflare R2.
+#
+# Run from this directory in the skypilot-aws env, on the OSC AWS account:
+#
+#   export PATH=~/miniforge3/envs/skypilot-aws/bin:$PATH
+#   AWS_PROFILE=osc sky launch -c bb-precip basin-precip.sky.yaml -i 10 --down \
+#       --env R2_ACCESS_KEY_ID --env R2_SECRET_ACCESS_KEY
+#
+# The two R2_* values are taken from the local environment (the same keys the
+# foraging Lambda reads from SSM /buzzards-bay-foraging/r2/*).
+#
+# us-west-2 keeps the MRMS reads (dynamical-noaa-mrms) same-region. The MRMS
+# store is anonymous, so the VM needs no AWS credentials of its own; R2 is the
+# only thing it authenticates to.
+#
+# Selection and target are env vars (override with --env; use `sky exec` to
+# re-run on the live cluster without redoing setup):
+#   SEL     what to compute:  "--dates 2014-11-02:2014-11-08" | "--last 3" | "--all"
+#   R2_KEY  key in the osc-pub bucket to merge into and upload; empty = local only
+#   OUT     local parquet path on the VM
+
+name: basin-precip
+
+resources:
+  cloud: aws
+  region: us-west-2
+  instance_type: m7i.large
+  disk_size: 50
+
+workdir: .
+
+envs:
+  SEL: "--dates 2014-11-02:2014-11-08"
+  R2_KEY: "buzzards-bay-precip/smoke/basins_v2_precip_ts.parquet"
+  OUT: "out/basins_v2_precip_ts.parquet"
+
+setup: |
+  set -euo pipefail
+  # icechunk needs Python >= 3.11; the image's default is older.
+  conda env list | grep -q '^bbprecip ' || conda create -y -q -n bbprecip -c conda-forge python=3.12
+  "$(conda info --base)/envs/bbprecip/bin/pip" install --quiet \
+    icechunk xarray zarr numpy pandas geopandas shapely pyarrow pyogrio boto3 tzdata
+
+run: |
+  set -euo pipefail
+  PY="$(conda info --base)/envs/bbprecip/bin/python"
+  R2ARG=""; if [ -n "$R2_KEY" ]; then R2ARG="--r2-key $R2_KEY"; fi
+  "$PY" -u basin_precip.py $SEL --out "$OUT" $R2ARG
