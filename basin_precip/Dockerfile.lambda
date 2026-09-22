@@ -1,0 +1,24 @@
+# Container-image Lambda for the daily basin-precip refresh.
+#
+# Build from this directory:
+#   docker build -f Dockerfile.lambda -t basin-precip .
+
+FROM public.ecr.aws/lambda/python:3.12
+
+# geopandas/pyproj/pyogrio wheels link against system libexpat, which the
+# minimal Lambda base image doesn't ship.
+RUN dnf install -y expat && dnf clean all
+
+RUN pip install --no-cache-dir \
+    icechunk \
+    xarray \
+    geopandas \
+    shapely \
+    pandas \
+    numpy \
+    pyarrow \
+    boto3
+
+COPY basin_precip.py lambda_handler.py ${LAMBDA_TASK_ROOT}/
+
+CMD ["lambda_handler.handler"]
