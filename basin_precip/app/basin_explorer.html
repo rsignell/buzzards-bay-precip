@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buzzards Bay basin rainfall explorer</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+  :root { --border: #d1d5db; --bg: #f8fafc; --text: #1f2937; --muted: #6b7280; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: var(--text); }
+  header { padding: 10px 16px; background: #1e3a8a; color: white; }
+  header h1 { margin: 0; font-size: 16px; font-weight: 600; }
+  header p { margin: 2px 0 0; font-size: 12px; color: #bfdbfe; }
+  #layout { display: flex; height: calc(100vh - 48px); }
+  #map { flex: 1 1 55%; min-width: 300px; }
+  #panel { flex: 1 1 45%; min-width: 340px; display: flex; flex-direction: column; border-left: 1px solid var(--border); overflow: hidden; }
+  #controls { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg); }
+  #controls .row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-bottom: 8px; }
+  #controls label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  #controls input[type=date] { padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; }
+  #clearBtn { padding: 6px 14px; background: #dc2626; color: white; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; }
+  #clearBtn:hover { background: #b91c1c; }
+  #clearBtn:disabled { background: #d1d5db; cursor: default; }
+  #hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  #status { font-size: 12px; color: var(--muted); padding: 4px 16px; }
+  #scroll { flex: 1; overflow-y: auto; padding: 12px 16px; }
+  table.stats { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
+  table.stats th, table.stats td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  table.stats th:first-child, table.stats td:first-child { text-align: left; }
+  table.stats th { color: var(--muted); font-weight: 600; font-size: 11px; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  .basin-name { display: flex; align-items: center; }
+  .removeX { margin-left: 6px; cursor: pointer; color: var(--muted); font-weight: bold; }
+  .removeX:hover { color: #dc2626; }
+  canvas { max-height: 260px; }
+  .chart-wrap { margin-bottom: 20px; }
+  .chart-wrap h3 { font-size: 13px; margin: 0 0 4px; }
+  .empty { color: var(--muted); font-size: 13px; padding: 20px 0; }
+  .note { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .missing-flag { color: #dc2626; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Buzzards Bay basin rainfall explorer</h1>
+  <p>Pick a date range, then click basins on the map to compare their daily rainfall and volume flux.</p>
+</header>
+<div id="layout">
+  <div id="map"></div>
+  <div id="panel">
+    <div id="controls">
+      <div class="row">
+        <div>
+          <label for="startDate">Start date</label>
+          <input type="date" id="startDate">
+        </div>
+        <div>
+          <label for="endDate">End date</label>
+          <input type="date" id="endDate">
+        </div>
+        <button id="clearBtn" disabled>Clear selection</button>
+      </div>
+      <div id="hint">Click a basin (land or water) to add it. Click a selected basin again, or its &times; below, to remove it.</div>
+    </div>
+    <div id="status">Loading basins and rainfall record&hellip;</div>
+    <div id="scroll">
+      <div id="empty" class="empty">No basins selected yet.</div>
+      <div id="legend"></div>
+      <table class="stats" id="statsTable" style="display:none">
+        <thead>
+          <tr><th>Basin</th><th>Days</th><th>Mean rain<br>(mm/day)</th><th>Total rain<br>(mm)</th>
+              <th>Mean discharge<br>(m&sup3;/s)</th><th>Total volume<br>(1000 m&sup3;)</th></tr>
+        </thead>
+        <tbody id="statsBody"></tbody>
+      </table>
+      <div class="chart-wrap"><h3>Daily rainfall (mm/day)</h3><canvas id="rainChart"></canvas></div>
+      <div class="chart-wrap">
+        <h3>Discharge &mdash; rainfall volume flux (m&sup3;/s)</h3>
+        <canvas id="dischargeChart"></canvas>
+        <div class="note">This is the rate at which rain volume falls over the basin (depth &times; area &divide; time), not measured streamflow.</div>
+      </div>
+      <div class="note" id="missingNote"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { asyncBufferFromUrl, parquetReadObjects } from 'https://cdn.jsdelivr.net/npm/hyparquet@1.14.0/src/hyparquet.min.js';
+
+const POLYGONS = 'https://raw.githubusercontent.com/rsignell/buzzards-bay-precip/main/basins/bbnep_subbasins_2026_v2.geojson';
+const SERIES = 'https://r2-pub.openscicomp.io/buzzards-bay-precip/basins_v2_precip_ts.parquet';
+const PALETTE = ['#2563eb', '#dc2626', '#16a34a', '#ea580c', '#7c3aed',
+                 '#0891b2', '#db2777', '#65a30d', '#4338ca', '#b45309'];
+const TYPE_COLOR = { LAND: '#16a34a', WATER: '#2563eb' };
+
+const statusEl = document.getElementById('status');
+const startInput = document.getElementById('startDate');
+const endInput = document.getElementById('endDate');
+const clearBtn = document.getElementById('clearBtn');
+const emptyEl = document.getElementById('empty');
+const legendEl = document.getElementById('legend');
+const statsTable = document.getElementById('statsTable');
+const statsBody = document.getElementById('statsBody');
+const missingNote = document.getElementById('missingNote');
+
+const map = L.map('map').setView([41.65, -70.84], 10);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '&copy; OpenStreetMap',
+}).addTo(map);
+
+const selected = new Map();   // basin_id -> { color, layer, name, type }
+const layersById = new Map(); // basin_id -> leaflet layer
+const featuresById = new Map(); // basin_id -> geojson feature
+let seriesByBasin = new Map(); // basin_id -> rows sorted by report_date
+let dataReady = false;
+let rainChart, dischargeChart;
+
+function basinLabel(props) {
+  return `${props.TMDL_BASIN} (${props.TYPE})`;
+}
+
+function baseStyle(props) {
+  return { color: TYPE_COLOR[props.TYPE] || '#666', weight: 1, opacity: 0.6,
+           fillColor: TYPE_COLOR[props.TYPE] || '#666', fillOpacity: 0.15 };
+}
+
+function selectedStyle(color) {
+  return { color, weight: 3, opacity: 1, fillColor: color, fillOpacity: 0.35 };
+}
+
+function nextColor() {
+  const used = new Set([...selected.values()].map(s => s.color));
+  return PALETTE.find(c => !used.has(c)) || PALETTE[selected.size % PALETTE.length];
+}
+
+function toggleBasin(basinId, props, layer) {
+  if (selected.has(basinId)) {
+    layer.setStyle(baseStyle(props));
+    selected.delete(basinId);
+  } else {
+    const color = nextColor();
+    layer.setStyle(selectedStyle(color));
+    selected.set(basinId, { color, name: basinLabel(props), type: props.TYPE });
+  }
+  clearBtn.disabled = selected.size === 0;
+  render();
+}
+
+fetch(POLYGONS).then(r => r.json()).then(geojson => {
+  const gj = L.geoJSON(geojson, {
+    style: f => baseStyle(f.properties),
+    onEachFeature: (feature, layer) => {
+      const basinId = `${feature.properties.BBP_SYS_ID}_${feature.properties.TYPE}`;
+      layersById.set(basinId, layer);
+      featuresById.set(basinId, feature);
+      layer.bindTooltip(basinLabel(feature.properties), { sticky: true });
+      layer.on('click', () => toggleBasin(basinId, feature.properties, layer));
+      layer.on('mouseover', () => { if (!selected.has(basinId)) layer.setStyle({ weight: 2, opacity: 1 }); });
+      layer.on('mouseout', () => { if (!selected.has(basinId)) layer.setStyle(baseStyle(feature.properties)); });
+    },
+  }).addTo(map);
+  map.fitBounds(gj.getBounds(), { padding: [10, 10] });
+}).catch(e => { statusEl.textContent = 'Failed to load basin polygons: ' + e; });
+
+asyncBufferFromUrl({ url: SERIES })
+  .then(file => parquetReadObjects({ file }))
+  .then(rows => {
+    let minDate = null, maxDate = null;
+    for (const row of rows) {
+      const d = row.report_date instanceof Date ? row.report_date : new Date(row.report_date);
+      row._date = d;
+      row._dateStr = d.toISOString().slice(0, 10);
+      if (!minDate || d < minDate) minDate = d;
+      if (!maxDate || d > maxDate) maxDate = d;
+      let arr = seriesByBasin.get(row.basin_id);
+      if (!arr) seriesByBasin.set(row.basin_id, arr = []);
+      arr.push(row);
+    }
+    for (const arr of seriesByBasin.values()) arr.sort((a, b) => a._date - b._date);
+
+    const toStr = d => d.toISOString().slice(0, 10);
+    startInput.min = endInput.min = toStr(minDate);
+    startInput.max = endInput.max = toStr(maxDate);
+    const defaultStart = new Date(maxDate); defaultStart.setUTCDate(defaultStart.getUTCDate() - 29);
+    startInput.value = toStr(defaultStart < minDate ? minDate : defaultStart);
+    endInput.value = toStr(maxDate);
+
+    dataReady = true;
+    statusEl.textContent = `${rows.length.toLocaleString()} basin-days loaded, ${toStr(minDate)} to ${toStr(maxDate)}.`;
+  })
+  .catch(e => { statusEl.textContent = 'Failed to load the rainfall record: ' + e; });
+
+function initCharts() {
+  const commonOpts = {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: 'index', intersect: false },
+    scales: { x: { type: 'time', time: { unit: 'day' } }, y: { beginAtZero: true } },
+    plugins: { legend: { display: true, labels: { boxWidth: 12, font: { size: 11 } } } },
+  };
+  rainChart = new Chart(document.getElementById('rainChart'), {
+    type: 'line', data: { datasets: [] },
+    options: { ...commonOpts, plugins: { ...commonOpts.plugins,
+      tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(2)} mm` } } } },
+  });
+  dischargeChart = new Chart(document.getElementById('dischargeChart'), {
+    type: 'line', data: { datasets: [] },
+    options: { ...commonOpts, plugins: { ...commonOpts.plugins,
+      tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(2)} m3/s` } } } },
+  });
+}
+
+function fmt(n, d = 2) { return Number.isFinite(n) ? n.toFixed(d) : '–'; }
+
+function render() {
+  const has = selected.size > 0;
+  emptyEl.style.display = has ? 'none' : 'block';
+  statsTable.style.display = has ? '' : 'none';
+  legendEl.innerHTML = '';
+  statsBody.innerHTML = '';
+  if (!rainChart) initCharts();
+  rainChart.data.datasets = [];
+  dischargeChart.data.datasets = [];
+
+  if (!has) {
+    rainChart.update(); dischargeChart.update();
+    missingNote.textContent = '';
+    return;
+  }
+  if (!dataReady) { statusEl.textContent = 'Still loading the rainfall record…'; return; }
+
+  const start = startInput.value, end = endInput.value;
+  let anyMissing = false;
+
+  for (const [basinId, info] of selected) {
+    const div = document.createElement('div');
+    div.className = 'basin-name';
+    div.innerHTML = `<span class="swatch" style="background:${info.color}"></span>${info.name}
+      <span class="removeX" data-basin="${basinId}">&times;</span>`;
+    legendEl.appendChild(div);
+
+    const allRows = seriesByBasin.get(basinId) || [];
+    const rows = allRows.filter(r => r._dateStr >= start && r._dateStr <= end);
+    const valid = rows.filter(r => r.precip_mm !== null && r.precip_mm !== undefined);
+    const nMissing = rows.filter(r => r.n_hours < r.n_hours_expected).length;
+    if (nMissing > 0) anyMissing = true;
+
+    const meanRain = valid.length ? valid.reduce((s, r) => s + r.precip_mm, 0) / valid.length : NaN;
+    const totalRain = valid.reduce((s, r) => s + r.precip_mm, 0);
+    const meanFlux = valid.length ? valid.reduce((s, r) => s + r.volume_flux_m3s, 0) / valid.length : NaN;
+    const totalVol = valid.reduce((s, r) => s + r.volume_m3, 0) / 1000;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="swatch" style="background:${info.color}"></span>${info.name}</td>
+      <td>${rows.length}${nMissing ? ` <span class="missing-flag">(${nMissing} partial)</span>` : ''}</td>
+      <td>${fmt(meanRain)}</td><td>${fmt(totalRain, 1)}</td>
+      <td>${fmt(meanFlux)}</td><td>${fmt(totalVol, 1)}</td>`;
+    statsBody.appendChild(tr);
+
+    rainChart.data.datasets.push({
+      label: info.name, data: rows.map(r => ({ x: r._dateStr, y: r.precip_mm })),
+      borderColor: info.color, backgroundColor: info.color, spanGaps: true, tension: 0.15, pointRadius: 2,
+    });
+    dischargeChart.data.datasets.push({
+      label: info.name, data: rows.map(r => ({ x: r._dateStr, y: r.volume_flux_m3s })),
+      borderColor: info.color, backgroundColor: info.color, spanGaps: true, tension: 0.15, pointRadius: 2,
+    });
+  }
+  rainChart.update();
+  dischargeChart.update();
+  missingNote.textContent = anyMissing
+    ? 'Days marked "partial" had MRMS hours missing; their totals are lower bounds.' : '';
+}
+
+document.getElementById('legend').addEventListener('click', e => {
+  const basinId = e.target?.dataset?.basin;
+  if (!basinId) return;
+  const layer = layersById.get(basinId);
+  const props = { TMDL_BASIN: selected.get(basinId).name.replace(/ \([A-Z]+\)$/, ''), TYPE: selected.get(basinId).type };
+  if (layer) toggleBasin(basinId, props, layer);
+});
+
+clearBtn.addEventListener('click', () => {
+  for (const basinId of selected.keys()) {
+    const layer = layersById.get(basinId);
+    if (layer) layer.setStyle(baseStyle({ TYPE: selected.get(basinId).type }));
+  }
+  selected.clear();
+  clearBtn.disabled = true;
+  render();
+});
+
+startInput.addEventListener('change', render);
+endInput.addEventListener('change', render);
+
+window.__debug = { map, layersById, featuresById, selected, seriesByBasin, get rainChart() { return rainChart; }, get dischargeChart() { return dischargeChart; } };
+</script>
+</body>
+</html>

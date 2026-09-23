@@ -275,7 +275,9 @@ def main():
         new = pd.concat([old[~old.report_date.isin(new.report_date.unique())], new],
                         ignore_index=True)
     new = new.sort_values(["report_date", "basin_id"]).reset_index(drop=True)
-    new.to_parquet(args.out, compression="zstd", index=False)
+    # snappy, not zstd: hyparquet (the pure-JS reader basin_explorer.html uses,
+    # no WASM) only decompresses snappy natively.
+    new.to_parquet(args.out, compression="snappy", index=False)
     print(f"wrote {args.out}: {len(new)} rows, {new.report_date.nunique()} dates "
           f"({new.report_date.min():%Y-%m-%d}..{new.report_date.max():%Y-%m-%d}), "
           f"{os.path.getsize(args.out) / 1e6:.2f} MB")
