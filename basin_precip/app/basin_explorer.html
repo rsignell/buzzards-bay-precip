@@ -28,6 +28,8 @@
   #downloadBtn { padding: 6px 14px; background: #1e3a8a; color: white; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; }
   #downloadBtn:hover { background: #1e2f6b; }
   #downloadBtn:disabled { background: #d1d5db; cursor: default; }
+  #unitBtn { padding: 6px 14px; background: white; color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; cursor: pointer; }
+  #unitBtn:hover { background: #f1f5f9; }
   #hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
   #status { font-size: 12px; color: var(--muted); padding: 4px 16px; }
   #scroll { flex: 1; overflow-y: auto; padding: 12px 16px; }
@@ -67,6 +69,7 @@
         </div>
         <button id="clearBtn" disabled>Clear selection</button>
         <button id="downloadBtn" disabled>Download CSV</button>
+        <button id="unitBtn">Show rainfall in inches/day</button>
       </div>
       <div id="hint">Click a basin (land or water) to add it. Click a selected basin again, or its &times; below, to remove it.</div>
     </div>
@@ -76,12 +79,12 @@
       <div id="legend"></div>
       <table class="stats" id="statsTable" style="display:none">
         <thead>
-          <tr><th>Basin</th><th>Days</th><th>Mean rain<br>(mm/day)</th><th>Total rain<br>(mm)</th>
+          <tr><th>Basin</th><th>Days</th><th id="meanRainHeader">Mean rain<br>(mm/day)</th><th id="totalRainHeader">Total rain<br>(mm)</th>
               <th>Mean discharge<br>(m&sup3;/s)</th><th>Total volume<br>(1000 m&sup3;)</th></tr>
         </thead>
         <tbody id="statsBody"></tbody>
       </table>
-      <div class="chart-wrap"><h3>Daily rainfall (mm/day)</h3><canvas id="rainChart"></canvas></div>
+      <div class="chart-wrap"><h3 id="rainChartTitle">Daily rainfall (mm/day)</h3><canvas id="rainChart"></canvas></div>
       <div class="chart-wrap">
         <h3>Discharge &mdash; rainfall volume flux (m&sup3;/s)</h3>
         <canvas id="dischargeChart"></canvas>
@@ -111,6 +114,10 @@ const legendEl = document.getElementById('legend');
 const statsTable = document.getElementById('statsTable');
 const statsBody = document.getElementById('statsBody');
 const missingNote = document.getElementById('missingNote');
+const unitBtn = document.getElementById('unitBtn');
+const meanRainHeader = document.getElementById('meanRainHeader');
+const totalRainHeader = document.getElementById('totalRainHeader');
+const rainChartTitle = document.getElementById('rainChartTitle');
 
 const map = L.map('map').setView([41.65, -70.84], 10);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -123,6 +130,12 @@ const featuresById = new Map(); // basin_id -> geojson feature
 let seriesByBasin = new Map(); // basin_id -> rows sorted by report_date
 let dataReady = false;
 let rainChart, dischargeChart;
+let rainUnit = 'mm';   // 'mm' or 'in' -- display only; the CSV export always has both
+
+const RAIN_UNIT_INFO = {
+  mm: { field: 'precip_mm', label: 'mm/day', totalLabel: 'mm', decimals: 2, totalDecimals: 1 },
+  in: { field: 'precip_in', label: 'in/day', totalLabel: 'in', decimals: 3, totalDecimals: 2 },
+};
 
 function basinLabel(props) {
   return `${props.TMDL_BASIN} (${props.TYPE})`;
@@ -209,7 +222,7 @@ function initCharts() {
   rainChart = new Chart(document.getElementById('rainChart'), {
     type: 'line', data: { datasets: [] },
     options: { ...commonOpts, plugins: { ...commonOpts.plugins,
-      tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(2)} mm` } } } },
+      tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(RAIN_UNIT_INFO[rainUnit].decimals)} ${RAIN_UNIT_INFO[rainUnit].totalLabel}` } } } },
   });
   dischargeChart = new Chart(document.getElementById('dischargeChart'), {
     type: 'line', data: { datasets: [] },
@@ -221,6 +234,11 @@ function initCharts() {
 function fmt(n, d = 2) { return Number.isFinite(n) ? n.toFixed(d) : '–'; }
 
 function render() {
+  const unitInfo = RAIN_UNIT_INFO[rainUnit];
+  meanRainHeader.innerHTML = `Mean rain<br>(${unitInfo.label})`;
+  totalRainHeader.innerHTML = `Total rain<br>(${unitInfo.totalLabel})`;
+  rainChartTitle.textContent = `Daily rainfall (${unitInfo.label})`;
+
   const has = selected.size > 0;
   emptyEl.style.display = has ? 'none' : 'block';
   statsTable.style.display = has ? '' : 'none';
@@ -238,6 +256,7 @@ function render() {
   if (!dataReady) { statusEl.textContent = 'Still loading the rainfall record…'; return; }
 
   const start = startInput.value, end = endInput.value;
+  const unit = RAIN_UNIT_INFO[rainUnit];
   let anyMissing = false;
 
   for (const [basinId, info] of selected) {
@@ -249,24 +268,24 @@ function render() {
 
     const allRows = seriesByBasin.get(basinId) || [];
     const rows = allRows.filter(r => r._dateStr >= start && r._dateStr <= end);
-    const valid = rows.filter(r => r.precip_mm !== null && r.precip_mm !== undefined);
+    const valid = rows.filter(r => r[unit.field] !== null && r[unit.field] !== undefined);
     const nMissing = rows.filter(r => r.n_hours < r.n_hours_expected).length;
     if (nMissing > 0) anyMissing = true;
 
-    const meanRain = valid.length ? valid.reduce((s, r) => s + r.precip_mm, 0) / valid.length : NaN;
-    const totalRain = valid.reduce((s, r) => s + r.precip_mm, 0);
+    const meanRain = valid.length ? valid.reduce((s, r) => s + r[unit.field], 0) / valid.length : NaN;
+    const totalRain = valid.reduce((s, r) => s + r[unit.field], 0);
     const meanFlux = valid.length ? valid.reduce((s, r) => s + r.volume_flux_m3s, 0) / valid.length : NaN;
     const totalVol = valid.reduce((s, r) => s + r.volume_m3, 0) / 1000;
 
     const tr = document.createElement('tr');
     tr.innerHTML = `<td><span class="swatch" style="background:${info.color}"></span>${info.name}</td>
       <td>${rows.length}${nMissing ? ` <span class="missing-flag">(${nMissing} partial)</span>` : ''}</td>
-      <td>${fmt(meanRain)}</td><td>${fmt(totalRain, 1)}</td>
+      <td>${fmt(meanRain, unit.decimals)}</td><td>${fmt(totalRain, unit.totalDecimals)}</td>
       <td>${fmt(meanFlux)}</td><td>${fmt(totalVol, 1)}</td>`;
     statsBody.appendChild(tr);
 
     rainChart.data.datasets.push({
-      label: info.name, data: rows.map(r => ({ x: r._dateStr, y: r.precip_mm })),
+      label: info.name, data: rows.map(r => ({ x: r._dateStr, y: r[unit.field] })),
       borderColor: info.color, backgroundColor: info.color, spanGaps: true, tension: 0.15, pointRadius: 2,
     });
     dischargeChart.data.datasets.push({
@@ -327,6 +346,12 @@ function downloadCsv() {
 }
 
 downloadBtn.addEventListener('click', downloadCsv);
+
+unitBtn.addEventListener('click', () => {
+  rainUnit = rainUnit === 'mm' ? 'in' : 'mm';
+  unitBtn.textContent = rainUnit === 'mm' ? 'Show rainfall in inches/day' : 'Show rainfall in mm/day';
+  render();
+});
 
 startInput.addEventListener('change', render);
 endInput.addEventListener('change', render);
