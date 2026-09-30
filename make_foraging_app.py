@@ -8,15 +8,15 @@ Sentinel-2 oak layer, SSURGO soils and the MRMS-driven soil-moisture model.
 
 The second view is the one that earns its keep: for anywhere not favorable, it
 shows *which* factor is holding it back. "Too dry" is worth waiting out, "no
-oak" never will be, "wrong month" tells you when to come back, and "rained too
-recently" means the water is there but the species' own fruiting lag hasn't
-passed yet. That falls straight out of scoring by Liebig minimum instead of
+oak" never will be, "wrong month" tells you when to come back, and "wet spell
+too new" means the water is there but the species' own fruiting lag since the
+rain began hasn't passed yet. That falls straight out of scoring by Liebig minimum instead of
 averaging.
 
 Everything is baked in as indexed PNGs -- no server, no tiles. Class rasters are
 three flat colours and compress to almost nothing; the continuous drivers ride
 along as half-resolution greyscale twins so a click can report the actual oak
-index, soil moisture, rain and days-since-soak under the cursor.
+index, soil moisture, rain and days-since-the-wet-spell-began under the cursor.
 
 Outputs:
   app/buzzards_bay_foraging.html
@@ -48,7 +48,7 @@ CLASS_STYLE = {3: ("#1a8f3c", "Favorable"),
 LIMIT_STYLE = {1: ("#6b4c9a", "No / thin oak host"),
                2: ("#b5651d", "Wrong time of year"),
                3: ("#2b7fb8", "Too dry"),
-               4: ("#3fa7a0", "Rained too recently -- give it a few days")}
+               4: ("#3fa7a0", "Wet spell just began -- give it a few days")}
 # land/public_land.tif codes not-public as 1 and public as 2 (not 0/1) so that
 # after reprojection, true nodata outside the basin -- which collapses to 0 in
 # class_png -- stays distinguishable from "inside the basin but not public".
@@ -60,10 +60,10 @@ CONTEXT = [
     ("oak", "s2/oak_index.tif", "oak index", 0.0, 0.60, "", 2),
     ("sm", "moisture/sm_now.tif", "soil moisture", 0.0, 1.0, "", 2),
     ("rain21", "moisture/rain_21.tif", "21-day rain", 0.0, 120.0, " mm", 0),
-    # Range must cover the whole post-spin-up window (HISTORY - SPINUP = 60 d).
-    # A tighter cap silently clips: a genuine 51-day dry spell displayed as 45.
-    ("soak", "moisture/days_since_soak.tif", "days since 0.5\" rain",
-     0.0, 60.0, " d", 0),
+    # Range must cover the whole record (HISTORY_DAYS = 150): the wet-spell
+    # clock runs through spin-up too, and a tighter cap silently clips.
+    ("soak", "moisture/days_since_wetup.tif", "days since wet spell began",
+     0.0, 150.0, " d", 0),
 ]
 
 
@@ -365,7 +365,7 @@ function legend() {
   document.getElementById('note').innerHTML =
     `<b>${phase}</b> · wants moisture to hold for about ${s.window} days `
     + `· usually worth checking about ${s.lag} day${s.lag === 1 ? '' : 's'} `
-    + `after a soaking rain<br>${s.note}`;
+    + `after a wet spell begins<br>${s.note}`;
 }
 
 // --- click readout ------------------------------------------------------- //

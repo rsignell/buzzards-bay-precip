@@ -21,11 +21,15 @@ worth waiting out.
   moisture  the minimum of two things: (1) is it sustained -- soil moisture
             and rainfall averaged over the species' window, so one downpour in
             an otherwise dry spell doesn't read as wet; and (2) has enough
-            time passed -- days since the last qualifying soak
-            (moisture/days_since_soak.tif) must clear the species' lag_days
+            time passed -- days since the current wet spell BEGAN
+            (moisture/days_since_wetup.tif) must clear the species' lag_days
             before any credit is given at all. Without (2), a single big storm
             can max out a wide trailing window the very next day, which
             contradicts every species' own "fruits N days after a soak" note.
+            The clock is deliberately NOT days since the most recent soak:
+            that resets on every rainy day, so a week of steady rain -- the
+            best fruiting weather there is -- would read as "too soon" until
+            it stopped. Only a soak onto soil that had dried out starts it.
 
 Everything is masked to closed non-marsh canopy: outside that, there is no
 habitat to rate and the map stays transparent rather than painting the ocean
@@ -39,7 +43,7 @@ season of observations can replace them.
 Outputs (under scores/):
   <species>_score.tif    0-1 continuous
   <species>_class.tif    1 unfavorable, 2 marginal, 3 favorable
-  <species>_limiter.tif  1 host, 2 season, 3 too dry, 4 rained too recently
+  <species>_limiter.tif  1 host, 2 season, 3 too dry, 4 wet spell too new
   summary.json           areas by class, as-of date
 
 Run on the oak-mapping cluster after mrms_moisture.py.
@@ -69,8 +73,8 @@ FAVORABLE, MARGINAL = 0.60, 0.35  # score thresholds for the three classes
 # window     : trailing days over which moisture is judged = "is it sustained"
 # sm_lo/hi   : soil moisture fraction ramp over that window
 # rain_lo/hi : rainfall total ramp over that window, mm
-# lag_days   : minimum days since the last qualifying soak (moisture/
-#              days_since_soak.tif) before fruiting is credited at all. A wide
+# lag_days   : minimum days since the current wet spell began (moisture/
+#              days_since_wetup.tif) before fruiting is credited at all. A wide
 #              trailing window alone doesn't stop a single huge storm from
 #              maxing out sm/rain the very next day -- lag_days is what
 #              actually encodes "fruits N days after a soak", separately from
@@ -214,11 +218,11 @@ def main():
           for w in (7, 14, 21)}
     rain = {w: read(f"moisture/rain_{w}.tif").values.astype("float32")
             for w in (7, 14, 21, 30)}
-    # NaN means never soaked in the post-spin-up record -- treat that as "long
-    # past any lag" so the sm/rain ramps (which will themselves be low) are
-    # what rules it out, not a stale lag gate.
-    days_since_soak = np.nan_to_num(
-        read("moisture/days_since_soak.tif").values.astype("float32"), nan=9999.0)
+    # NaN means no wet spell began anywhere in the record -- treat that as
+    # "long past any lag" so the sm/rain ramps (which will themselves be low)
+    # are what rules it out, not a stale lag gate.
+    days_since_wetup = np.nan_to_num(
+        read("moisture/days_since_wetup.tif").values.astype("float32"), nan=9999.0)
 
     summary = {"as_of": str(as_of.date()), "day_of_year": int(doy),
                "rateable_canopy_km2": round(float(canopy.sum() * px_km2), 1),
@@ -242,7 +246,7 @@ def main():
         # from "too soon" -- different, actionable messages.
         sustained = np.minimum(ramp(sm[w], sp["sm_lo"], sp["sm_hi"]),
                                ramp(rain[w], sp["rain_lo"], sp["rain_hi"]))
-        lag = ramp(days_since_soak, 0.0, sp["lag_days"])
+        lag = ramp(days_since_wetup, 0.0, sp["lag_days"])
 
         terms = np.stack([host, np.full_like(host, season), sustained, lag])
         score = np.where(canopy, terms.min(axis=0), np.nan)

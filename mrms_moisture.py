@@ -30,6 +30,10 @@ Outputs (under moisture/):
   sm_mean_7/14/21    mean soil moisture over trailing windows
   rain_7/14/21/30    rainfall totals over trailing windows (mm)
   days_since_soak    days since a day delivering >= SOAK_MM
+  days_since_wetup   days since the current wet spell began: the first soak
+                     after the soil had dried below DRY_SM. Further soaks while
+                     the ground stays wet do NOT restart it -- this is the
+                     fruiting clock, and days of rain keep it running.
   meta.json          as-of date, window, provenance
 
 Run on the oak-mapping cluster in the `mrms` env (needs Python >= 3.11):
@@ -82,6 +86,12 @@ PET_MEAN, PET_AMP, PET_PEAK_DOY = 2.35, 2.05, 196.0
 # A "soak": the daily total that actually recharges litter and triggers
 # fruiting. 12.7 mm is half an inch, the number foragers use.
 SOAK_MM = 12.7
+
+# Soil moisture fraction below which the ground counts as having dried out.
+# A soak only starts a new wet spell (restarts the fruiting clock) if the soil
+# had dropped below this first; soaks onto already-wet ground extend the spell.
+# On excessively drained sand this takes ~a week of dry weather in late summer.
+DRY_SM = 0.30
 
 # Floor on bucket capacity (mm). Guards against map units with implausibly
 # small available water reporting instant saturation and instant drought.
@@ -204,15 +214,25 @@ def main():
     S = 0.5 * cap                               # initial guess, burned off
     keep = deque(maxlen=21)                     # trailing soil-moisture states
     last_soak = np.full(shape, np.nan, dtype="float32")
+    # The wet-spell clock runs over the whole record, spin-up included, so a
+    # spell that began during spin-up is still dated correctly. `armed` means
+    # the soil has dried out since the last spell began, so the next soak
+    # starts a new one.
+    wetup = np.full(shape, np.nan, dtype="float32")
+    armed = np.ones(shape, dtype=bool)
 
     for n, d in enumerate(days):
+        armed |= (S / cap) < DRY_SM             # state at the start of the day
+        soaked = P[n][i, j] >= SOAK_MM
+        start = soaked & armed
+        wetup = np.where(start, 0.0, wetup + 1.0)
+        armed &= ~start
         rain = P[n][i, j] * THROUGHFALL
         S = np.minimum(S + rain, cap)
         S = np.maximum(S - pet_mm(d.dayofyear) * (S / cap), 0.0)
         sm = (S / cap).astype("float32")
         if n >= SPINUP_DAYS:
             keep.append(sm)
-            soaked = P[n][i, j] >= SOAK_MM
             last_soak = np.where(soaked, 0.0, last_soak + 1.0)
 
     # Accumulate the trailing means in place rather than np.stack-ing the
@@ -239,6 +259,12 @@ def main():
     for w in (7, 14, 21):
         write(trailing_mean(w), f"sm_mean_{w}", transform)
     write(last_soak, "days_since_soak", transform)
+    write(wetup, "days_since_wetup", transform)
+    # Only where there is soil: without a capacity the bucket never dries, so
+    # those cells carry a meaningless record-long clock and swamp the median.
+    soil = np.isfinite(cap)
+    print(f"  days since wet spell began: median {np.median(wetup[soil]):.0f}, "
+          f"days since last soak: median {np.nanmedian(last_soak[soil]):.0f}")
 
     # --- rain windows: 1 km, then upsampled -------------------------------- #
     for w in (7, 14, 21, 30):
@@ -257,6 +283,7 @@ def main():
         "capacity": "SSURGO available water storage 0-25 cm",
         "parameters": {"throughfall": THROUGHFALL, "pet_mean": PET_MEAN,
                        "pet_amp": PET_AMP, "soak_mm": SOAK_MM,
+                       "dry_sm": DRY_SM,
                        "min_capacity_mm": MIN_CAPACITY_MM},
         "calibrated": False,
     }

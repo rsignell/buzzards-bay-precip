@@ -1,7 +1,7 @@
 {
-  "as_of": "2026-09-11",
+  "as_of": "2026-09-30",
   "day_ends_utc": "12:00",
-  "first_day": "2026-07-14",
+  "first_day": "2026-08-02",
   "n_days": 150,
   "spinup_days": 90,
   "source": "MRMS precipitation_surface (radar/gauge QPE), dynamical.org icechunk",
@@ -11,6 +11,7 @@
     "pet_mean": 2.35,
     "pet_amp": 2.05,
     "soak_mm": 12.7,
+    "dry_sm": 0.3,
     "min_capacity_mm": 8.0
   },
   "calibrated": false

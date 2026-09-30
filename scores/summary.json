@@ -1,71 +1,102 @@
 {
-  "as_of": "2026-09-11",
-  "day_of_year": 254,
+  "as_of": "2026-09-30",
+  "day_of_year": 273,
   "rateable_canopy_km2": 1103.5,
   "calibrated": false,
   "species": {
     "chanterelle": {
       "label": "Chanterelle (Cantharellus)",
       "note": "Mycorrhizal with oak. Fruits 1-3 weeks after a soak and persists; wants sustained moisture rather than one downpour.",
-      "season_score": 0.56,
+      "season_score": 0.0,
+      "season_phase": "out of season",
       "window_days": 21,
+      "lag_days": 7,
       "areas_km2": {
         "favorable": 0.0,
-        "marginal": 356.2,
-        "unfavorable": 747.3
+        "marginal": 0.0,
+        "unfavorable": 1103.5
       },
       "limiting_pct_of_canopy": {
-        "host": 25.0,
-        "season": 16.0,
-        "moisture": 58.0
+        "host": 17.0,
+        "season": 82.0,
+        "moisture": 1.0,
+        "lag": 0.0
+      }
+    },
+    "black_trumpet": {
+      "label": "Black trumpet (Craterellus)",
+      "note": "Mycorrhizal with oak, usually in mossy, low, damp ground nearby. Wants sustained moisture even more than chanterelles and hides well in leaf litter -- look, don't just glance.",
+      "season_score": 0.48,
+      "season_phase": "season winding down",
+      "window_days": 21,
+      "lag_days": 8,
+      "areas_km2": {
+        "favorable": 0.0,
+        "marginal": 777.1,
+        "unfavorable": 326.5
+      },
+      "limiting_pct_of_canopy": {
+        "host": 32.0,
+        "season": 61.0,
+        "moisture": 2.0,
+        "lag": 5.0
       }
     },
     "bolete": {
       "label": "Boletes (edible Boletus spp.)",
       "note": "Mycorrhizal with both oak and pine, so pine barrens count. Flushes hard 5-14 days after rain and passes quickly.",
       "season_score": 1.0,
+      "season_phase": "in season",
       "window_days": 14,
+      "lag_days": 4,
       "areas_km2": {
-        "favorable": 200.2,
-        "marginal": 149.6,
-        "unfavorable": 753.8
+        "favorable": 822.5,
+        "marginal": 212.6,
+        "unfavorable": 68.4
       },
       "limiting_pct_of_canopy": {
-        "host": 5.0,
+        "host": 21.0,
         "season": 0.0,
-        "moisture": 77.0
+        "moisture": 5.0,
+        "lag": 0.0
       }
     },
     "chicken": {
       "label": "Chicken-of-the-woods (Laetiporus)",
-      "note": "Decays oak wood, living or dead, so scattered big trees count and it is the least soil-moisture dependent of the four.",
+      "note": "Decays oak wood, living or dead, so scattered big trees count and it is the least soil-moisture dependent of the five.",
       "season_score": 1.0,
+      "season_phase": "in season",
       "window_days": 21,
+      "lag_days": 3,
       "areas_km2": {
-        "favorable": 447.2,
-        "marginal": 275.6,
-        "unfavorable": 380.8
+        "favorable": 780.4,
+        "marginal": 84.6,
+        "unfavorable": 238.5
       },
       "limiting_pct_of_canopy": {
-        "host": 24.0,
+        "host": 28.0,
         "season": 0.0,
-        "moisture": 35.0
+        "moisture": 1.0,
+        "lag": 0.0
       }
     },
     "hen": {
       "label": "Hen-of-the-woods (Grifola frondosa)",
       "note": "At the base of large, mature, often stressed oaks. Tight autumn window. NOTE: the real trigger is the first run of cool nights, which this calendar window only approximates -- no temperature layer is wired in yet.",
-      "season_score": 0.4,
+      "season_score": 1.0,
+      "season_phase": "in season",
       "window_days": 21,
+      "lag_days": 7,
       "areas_km2": {
-        "favorable": 0.0,
-        "marginal": 383.4,
-        "unfavorable": 720.1
+        "favorable": 382.7,
+        "marginal": 191.2,
+        "unfavorable": 529.6
       },
       "limiting_pct_of_canopy": {
-        "host": 45.0,
-        "season": 31.0,
-        "moisture": 24.0
+        "host": 58.0,
+        "season": 0.0,
+        "moisture": 1.0,
+        "lag": 6.0
       }
     }
   }
