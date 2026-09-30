@@ -1,0 +1,15 @@
+**
+!mrms_moisture.py
+!score_species.py
+!make_foraging_app.py
+!buzzards_bay_watershed.geojson
+!cape_cod_watershed.geojson
+!soil
+!soil/soil_awc25.tif
+!soil/soil_awc.tif
+!s2
+!s2/oak_index.tif
+!land
+!land/public_land.tif
+!lambda
+!lambda/handler.py

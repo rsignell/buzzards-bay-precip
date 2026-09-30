@@ -1,0 +1,32 @@
+# Container-image Lambda for the daily foraging-app refresh (run_daily.sh,
+# minus the habitat rebuild -- those layers are static and baked in here).
+#
+# Build from the repo root:
+#   docker build -f Dockerfile.lambda -t buzzards-bay-foraging .
+FROM public.ecr.aws/lambda/python:3.12
+
+# The rasterio/pyproj wheels link against system libexpat, which the minimal
+# Lambda base image doesn't ship.
+RUN dnf install -y expat && dnf clean all
+
+RUN pip install --no-cache-dir \
+    icechunk \
+    rioxarray \
+    rasterio \
+    geopandas \
+    pyproj \
+    pillow \
+    numpy \
+    pandas \
+    xarray \
+    matplotlib \
+    boto3
+
+COPY mrms_moisture.py score_species.py make_foraging_app.py ${LAMBDA_TASK_ROOT}/
+COPY buzzards_bay_watershed.geojson cape_cod_watershed.geojson ${LAMBDA_TASK_ROOT}/
+COPY soil/soil_awc25.tif soil/soil_awc.tif ${LAMBDA_TASK_ROOT}/soil/
+COPY s2/oak_index.tif ${LAMBDA_TASK_ROOT}/s2/
+COPY land/public_land.tif ${LAMBDA_TASK_ROOT}/land/
+COPY lambda/handler.py ${LAMBDA_TASK_ROOT}/
+
+CMD ["handler.handler"]
