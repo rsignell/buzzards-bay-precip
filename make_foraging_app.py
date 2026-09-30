@@ -1,15 +1,17 @@
 """
 The foraging app: pick a species, see where conditions are favorable today.
 
-One self-contained HTML file. Pick one of the four species on the curated list
+One self-contained HTML file. Pick one of the five species on the curated list
 and the map shows favorable / marginal / unfavorable across every rateable acre
 of closed canopy in the Buzzards Bay and Cape Cod watersheds, from the
 Sentinel-2 oak layer, SSURGO soils and the MRMS-driven soil-moisture model.
 
 The second view is the one that earns its keep: for anywhere not favorable, it
 shows *which* factor is holding it back. "Too dry" is worth waiting out, "no
-oak" never will be, and "wrong month" tells you when to come back. That falls
-straight out of scoring by Liebig minimum instead of averaging.
+oak" never will be, "wrong month" tells you when to come back, and "rained too
+recently" means the water is there but the species' own fruiting lag hasn't
+passed yet. That falls straight out of scoring by Liebig minimum instead of
+averaging.
 
 Everything is baked in as indexed PNGs -- no server, no tiles. Class rasters are
 three flat colours and compress to almost nothing; the continuous drivers ride
@@ -45,7 +47,13 @@ CLASS_STYLE = {3: ("#1a8f3c", "Favorable"),
                1: ("#7d5a5a", "Unfavorable")}
 LIMIT_STYLE = {1: ("#6b4c9a", "No / thin oak host"),
                2: ("#b5651d", "Wrong time of year"),
-               3: ("#2b7fb8", "Too dry")}
+               3: ("#2b7fb8", "Too dry"),
+               4: ("#3fa7a0", "Rained too recently -- give it a few days")}
+# land/public_land.tif codes not-public as 1 and public as 2 (not 0/1) so that
+# after reprojection, true nodata outside the basin -- which collapses to 0 in
+# class_png -- stays distinguishable from "inside the basin but not public".
+# Only code 1 gets a style entry, so public land (2) is left transparent.
+PUBLIC_LAND_STYLE = {1: ("#4d4d4d", "Not public land")}
 
 # key, path, label, vmin, vmax, units, decimals
 CONTEXT = [
@@ -135,7 +143,8 @@ def main():
             bounds = bounds_latlon(cls)
         species[key] = {
             "label": info["label"], "note": info["note"],
-            "season": info["season_score"], "window": info["window_days"],
+            "season": info["season_score"], "phase": info["season_phase"],
+            "window": info["window_days"], "lag": info["lag_days"],
             "areas": info["areas_km2"], "limiting": info["limiting_pct_of_canopy"],
             "cls": class_png(cls, CLASS_STYLE),
             "lim": class_png(lim, LIMIT_STYLE),
@@ -145,6 +154,10 @@ def main():
               f"{len(species[key]['cls']) / 1e6:4.1f} + "
               f"{len(species[key]['lim']) / 1e6:4.1f} + "
               f"{len(species[key]['score']) / 1e6:4.1f} MB")
+
+    pub = prepare("land/public_land.tif", geom, categorical=True)
+    public_land_png = class_png(pub, PUBLIC_LAND_STYLE)
+    print(f"  {'public land mask':42s} {len(public_land_png) / 1e6:4.1f} MB")
 
     grid30 = rioxarray.open_rasterio("moisture/sm_now.tif").squeeze(drop=True)
     context = {}
@@ -159,6 +172,7 @@ def main():
         "canopy_km2": summary["rateable_canopy_km2"],
         "species": species,
         "context": context,
+        "public_land": public_land_png,
         "bounds": bounds,
         "outline": json.loads(basins.to_crs(4326).dissolve().to_json()),
         "classes": [{"color": c, "label": l} for c, l in CLASS_STYLE.values()],
@@ -180,9 +194,23 @@ TEMPLATE = r"""<!doctype html>
 <style>
   html,body{margin:0;height:100%;font:13px/1.5 system-ui,-apple-system,sans-serif;}
   #map{position:absolute;inset:0;}
-  .panel{position:absolute;top:10px;right:10px;z-index:1000;width:290px;
+  .menu-btn{position:absolute;top:10px;right:10px;z-index:1001;width:38px;height:38px;
+    border:none;border-radius:8px;background:rgba(255,255,255,.97);
+    box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:19px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;padding:0;}
+  .mini-bar{display:none;position:absolute;left:8px;right:8px;bottom:8px;z-index:999;
+    background:rgba(255,255,255,.95);border-radius:10px;padding:8px 10px;
+    box-shadow:0 2px 10px rgba(0,0,0,.3);}
+  .mini-bar.show{display:block;}
+  .mini-title{font-weight:700;font-size:12.5px;margin-bottom:5px;}
+  .mini-legend{display:flex;flex-wrap:wrap;gap:9px;font-size:11px;}
+  .mini-legend .item{display:flex;align-items:center;gap:4px;white-space:nowrap;}
+  .mini-legend .sw{width:11px;height:11px;border-radius:3px;border:1px solid rgba(0,0,0,.25);flex:none;}
+  .panel{display:none;position:absolute;top:56px;right:10px;z-index:1000;width:290px;
+    max-width:calc(100vw - 20px);
     background:rgba(255,255,255,.97);border-radius:10px;padding:14px 16px;
-    box-shadow:0 2px 16px rgba(0,0,0,.3);max-height:calc(100% - 20px);overflow-y:auto;}
+    box-shadow:0 2px 16px rgba(0,0,0,.3);max-height:calc(100% - 66px);overflow-y:auto;}
+  .panel.open{display:block;}
   h2{margin:0 0 2px;font-size:15px;}
   .asof{color:#666;font-size:11.5px;margin-bottom:12px;}
   h4{margin:14px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
@@ -209,6 +237,11 @@ TEMPLATE = r"""<!doctype html>
     font-size:10.5px;color:#888;line-height:1.4;}
 </style></head><body>
 <div id="map"></div>
+<button id="menu-toggle" class="menu-btn" aria-label="Toggle menu">&#9776;</button>
+<div class="mini-bar" id="miniBar">
+  <div class="mini-title" id="miniTitle"></div>
+  <div class="mini-legend" id="miniLegend"></div>
+</div>
 <div class="panel">
   <h2>Foraging conditions</h2>
   <div class="asof" id="asof"></div>
@@ -221,6 +254,12 @@ TEMPLATE = r"""<!doctype html>
   </div>
   <h4>Opacity</h4>
   <input type="range" id="opacity" min="0" max="100" value="78">
+  <h4>Land</h4>
+  <label class="row" style="cursor:pointer">
+    <input type="checkbox" id="pub-toggle" style="margin-right:7px">
+    <span class="sw" style="background:#4d4d4d"></span>
+    Grey out non-public land
+  </label>
   <div id="legend"></div>
   <div class="note" id="note"></div>
   <div class="readout" id="readout">Click the map for conditions at a point.</div>
@@ -228,7 +267,21 @@ TEMPLATE = r"""<!doctype html>
 </div>
 <script>
 const D = __DATA__;
-let sp = Object.keys(D.species)[0], view = "cls", overlay = null;
+// Default to whichever species has the most favorable ground today, not
+// just the first in the curated list -- that's the one worth opening on.
+let sp = Object.keys(D.species).reduce((best, k) =>
+  D.species[k].areas.favorable > D.species[best].areas.favorable ? k : best);
+let view = "cls", overlay = null, pubOverlay = null;
+
+const panelEl = document.querySelector('.panel');
+const miniBar = document.getElementById('miniBar');
+function syncMiniBar() { miniBar.classList.toggle('show', !panelEl.classList.contains('open')); }
+if (window.innerWidth > 640) panelEl.classList.add('open');
+syncMiniBar();
+document.getElementById('menu-toggle').onclick = () => {
+  panelEl.classList.toggle('open');
+  syncMiniBar();
+};
 
 const map = L.map('map');
 map.fitBounds(D.bounds);
@@ -269,16 +322,32 @@ for (const [id, v] of [['b-cls','cls'], ['b-lim','lim']]) {
 document.getElementById('opacity').oninput = e => {
   if (overlay) overlay.setOpacity(e.target.value/100);
 };
+document.getElementById('pub-toggle').onchange = e => {
+  if (e.target.checked) {
+    pubOverlay = L.imageOverlay(D.public_land, D.bounds,
+      {opacity:0.62, interactive:false}).addTo(map);
+  } else if (pubOverlay) {
+    map.removeLayer(pubOverlay);
+    pubOverlay = null;
+  }
+};
 
 function draw() {
   if (overlay) map.removeLayer(overlay);
   overlay = L.imageOverlay(D.species[sp][view], D.bounds,
     {opacity: document.getElementById('opacity').value/100, interactive:false}).addTo(map);
+  if (pubOverlay) pubOverlay.bringToFront();
   legend();
 }
 
 function legend() {
   const s = D.species[sp], el = document.getElementById('legend');
+  const miniItems = view === 'cls' ? D.classes : D.limits;
+  document.getElementById('miniTitle').textContent =
+    `${s.label} — ${view === 'cls' ? 'Conditions' : 'Why not?'}`;
+  document.getElementById('miniLegend').innerHTML = miniItems.map(c =>
+    `<div class="item"><span class="sw" style="background:${c.color}"></span>${c.label}</div>`
+  ).join('');
   if (view === 'cls') {
     el.innerHTML = '<h4>Conditions</h4>' + D.classes.map(c =>
       `<div class="row"><span class="sw" style="background:${c.color}"></span>${c.label}
@@ -286,15 +355,17 @@ function legend() {
     ).join('');
   } else {
     el.innerHTML = '<h4>Limiting factor</h4>' + D.limits.map((c,i) => {
-      const key = ['host','season','moisture'][i];
+      const key = ['host','season','moisture','lag'][i];
       return `<div class="row"><span class="sw" style="background:${c.color}"></span>${c.label}
         <span class="km">${s.limiting[key]??0}%</span></div>`;
     }).join('') + '<div class="note">Percent of rateable canopy where this is '
       + 'the binding constraint. Favorable ground is not shaded.</div>';
   }
+  const phase = s.phase.charAt(0).toUpperCase() + s.phase.slice(1);
   document.getElementById('note').innerHTML =
-    `<b>Season score today: ${s.season.toFixed(2)}</b> · moisture judged over a `
-    + `${s.window}-day window.<br>${s.note}`;
+    `<b>${phase}</b> · wants moisture to hold for about ${s.window} days `
+    + `· usually worth checking about ${s.lag} day${s.lag === 1 ? '' : 's'} `
+    + `after a soaking rain<br>${s.note}`;
 }
 
 // --- click readout ------------------------------------------------------- //
@@ -369,7 +440,16 @@ document.getElementById('caveat').innerHTML =
   + `<b>None of the species thresholds are calibrated</b> — there is no fruiting `
   + `record for this region to fit them to, so they encode ordinary mycological `
   + `expectations, not measured skill. Treat this as "conditions are favorable", `
-  + `never "mushrooms are here". Check foraging rules before collecting.`;
+  + `never "mushrooms are here". Check foraging rules before collecting. `
+  + `<b>"Grey out non-public land" is a best-effort match, not a parcel-level `
+  + `ownership record</b> — it combines MassGIS's Protected and Recreational `
+  + `OpenSpace layer (federal/state/county/municipal ownership) with the `
+  + `statewide property tax parcels, kept wherever the owner name matches a `
+  + `government pattern ("TOWN OF ...", "COMMONWEALTH OF MASS...", "US ARMY...", `
+  + `water/fire districts, housing authorities). That catches most ordinary `
+  + `town, state and federal parcels the open-space layer alone misses, but an `
+  + `unusual or misspelled owner name can still slip through, and it says `
+  + `nothing about whether foraging is actually allowed there.`;
 
 draw();
 </script></body></html>

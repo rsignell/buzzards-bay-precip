@@ -2,8 +2,9 @@
 Per-species foraging conditions: favorable / marginal / unfavorable.
 
 Combines the static habitat layers with the current moisture state into one
-score per species, on the shared 30 m grid, for the four species on the curated
-list: chanterelle, bolete, chicken-of-the-woods, hen-of-the-woods.
+score per species, on the shared 30 m grid, for the five species on the
+curated list: chanterelle, black trumpet, bolete, chicken-of-the-woods,
+hen-of-the-woods.
 
 Three sub-scores, each 0-1, combined by Liebig's law of the minimum rather than
 averaged. A stand with perfect moisture and no oak is not "half good" for
@@ -17,9 +18,14 @@ worth waiting out.
             conifers, so they get the better of an oak ramp and a conifer ramp
             derived from the same index read the other way.
   season    a day-of-year trapezoid per species.
-  moisture  soil moisture averaged over the species' fruiting lag window, and
-            rainfall over the same window. Fruiting follows a soak by one to
-            three weeks depending on species, so the window is the point.
+  moisture  the minimum of two things: (1) is it sustained -- soil moisture
+            and rainfall averaged over the species' window, so one downpour in
+            an otherwise dry spell doesn't read as wet; and (2) has enough
+            time passed -- days since the last qualifying soak
+            (moisture/days_since_soak.tif) must clear the species' lag_days
+            before any credit is given at all. Without (2), a single big storm
+            can max out a wide trailing window the very next day, which
+            contradicts every species' own "fruits N days after a soak" note.
 
 Everything is masked to closed non-marsh canopy: outside that, there is no
 habitat to rate and the map stays transparent rather than painting the ocean
@@ -33,7 +39,7 @@ season of observations can replace them.
 Outputs (under scores/):
   <species>_score.tif    0-1 continuous
   <species>_class.tif    1 unfavorable, 2 marginal, 3 favorable
-  <species>_limiter.tif  1 host, 2 season, 3 moisture
+  <species>_limiter.tif  1 host, 2 season, 3 too dry, 4 rained too recently
   summary.json           areas by class, as-of date
 
 Run on the oak-mapping cluster after mrms_moisture.py.
@@ -60,9 +66,15 @@ FAVORABLE, MARGINAL = 0.60, 0.35  # score thresholds for the three classes
 #              median 0.27 and an inland Oak/hickory stand 0.43, so these are
 #              deliberately lower than an inland scale would suggest.
 # season     : (start, full, end_full, end) day-of-year trapezoid
-# window     : trailing days over which moisture is judged = the fruiting lag
+# window     : trailing days over which moisture is judged = "is it sustained"
 # sm_lo/hi   : soil moisture fraction ramp over that window
 # rain_lo/hi : rainfall total ramp over that window, mm
+# lag_days   : minimum days since the last qualifying soak (moisture/
+#              days_since_soak.tif) before fruiting is credited at all. A wide
+#              trailing window alone doesn't stop a single huge storm from
+#              maxing out sm/rain the very next day -- lag_days is what
+#              actually encodes "fruits N days after a soak", separately from
+#              "is moisture sustained".
 SPECIES = {
     "chanterelle": dict(
         label="Chanterelle (Cantharellus)",
@@ -70,7 +82,16 @@ SPECIES = {
              "wants sustained moisture rather than one downpour.",
         host="oak", oak_lo=0.12, oak_hi=0.30,
         season=(166, 186, 243, 268),        # mid-Jun .. late Sep, peak Jul-Aug
-        window=21, sm_lo=0.20, sm_hi=0.45, rain_lo=25, rain_hi=60,
+        window=21, sm_lo=0.20, sm_hi=0.45, rain_lo=25, rain_hi=60, lag_days=7,
+    ),
+    "black_trumpet": dict(
+        label="Black trumpet (Craterellus)",
+        note="Mycorrhizal with oak, usually in mossy, low, damp ground nearby. "
+             "Wants sustained moisture even more than chanterelles and hides "
+             "well in leaf litter -- look, don't just glance.",
+        host="oak", oak_lo=0.12, oak_hi=0.30,
+        season=(182, 205, 262, 283),        # early Jul .. early Oct, peak Aug-Sep
+        window=21, sm_lo=0.22, sm_hi=0.48, rain_lo=28, rain_hi=65, lag_days=8,
     ),
     "bolete": dict(
         label="Boletes (edible Boletus spp.)",
@@ -78,15 +99,15 @@ SPECIES = {
              "Flushes hard 5-14 days after rain and passes quickly.",
         host="oak_or_conifer", oak_lo=0.12, oak_hi=0.30,
         season=(161, 182, 273, 293),        # mid-Jun .. mid-Oct
-        window=14, sm_lo=0.18, sm_hi=0.40, rain_lo=20, rain_hi=50,
+        window=14, sm_lo=0.18, sm_hi=0.40, rain_lo=20, rain_hi=50, lag_days=4,
     ),
     "chicken": dict(
         label="Chicken-of-the-woods (Laetiporus)",
         note="Decays oak wood, living or dead, so scattered big trees count "
-             "and it is the least soil-moisture dependent of the four.",
+             "and it is the least soil-moisture dependent of the five.",
         host="oak", oak_lo=0.08, oak_hi=0.25,
         season=(152, 222, 283, 309),        # Jun .. early Nov, peak late summer
-        window=21, sm_lo=0.12, sm_hi=0.35, rain_lo=15, rain_hi=45,
+        window=21, sm_lo=0.12, sm_hi=0.35, rain_lo=15, rain_hi=45, lag_days=3,
     ),
     "hen": dict(
         label="Hen-of-the-woods (Grifola frondosa)",
@@ -96,7 +117,7 @@ SPECIES = {
              "layer is wired in yet.",
         host="oak", oak_lo=0.20, oak_hi=0.40,
         season=(244, 269, 298, 314),        # Sep .. mid-Nov, peak Oct
-        window=21, sm_lo=0.15, sm_hi=0.38, rain_lo=20, rain_hi=50,
+        window=21, sm_lo=0.15, sm_hi=0.38, rain_lo=20, rain_hi=50, lag_days=7,
     ),
 }
 
@@ -117,6 +138,18 @@ def season_score(doy, s):
     if doy <= c:
         return 1.0
     return (d - doy) / (d - c)
+
+
+def season_phase(doy, s):
+    """Plain-language read of where today sits in the same trapezoid."""
+    a, b, c, d = s
+    if doy <= a or doy >= d:
+        return "out of season"
+    if doy < b:
+        return "season just starting"
+    if doy <= c:
+        return "in season"
+    return "season winding down"
 
 
 def coarsen3(a):
@@ -181,6 +214,11 @@ def main():
           for w in (7, 14, 21)}
     rain = {w: read(f"moisture/rain_{w}.tif").values.astype("float32")
             for w in (7, 14, 21, 30)}
+    # NaN means never soaked in the post-spin-up record -- treat that as "long
+    # past any lag" so the sm/rain ramps (which will themselves be low) are
+    # what rules it out, not a stale lag gate.
+    days_since_soak = np.nan_to_num(
+        read("moisture/days_since_soak.tif").values.astype("float32"), nan=9999.0)
 
     summary = {"as_of": str(as_of.date()), "day_of_year": int(doy),
                "rateable_canopy_km2": round(float(canopy.sum() * px_km2), 1),
@@ -198,10 +236,15 @@ def main():
 
         season = season_score(doy, sp["season"])
         w = sp["window"]
-        moisture = np.minimum(ramp(sm[w], sp["sm_lo"], sp["sm_hi"]),
-                              ramp(rain[w], sp["rain_lo"], sp["rain_hi"]))
+        # Sustained (is the window wet enough) and lag (has enough time passed
+        # since the soak) are kept as separate terms, not folded into one
+        # "moisture" number, so the limiter below can tell a forager "too dry"
+        # from "too soon" -- different, actionable messages.
+        sustained = np.minimum(ramp(sm[w], sp["sm_lo"], sp["sm_hi"]),
+                               ramp(rain[w], sp["rain_lo"], sp["rain_hi"]))
+        lag = ramp(days_since_soak, 0.0, sp["lag_days"])
 
-        terms = np.stack([host, np.full_like(host, season), moisture])
+        terms = np.stack([host, np.full_like(host, season), sustained, lag])
         score = np.where(canopy, terms.min(axis=0), np.nan)
 
         cls = np.where(~canopy, 0,
@@ -222,10 +265,11 @@ def main():
         areas = {nm: round(float((cls == v).sum() * px_km2), 1)
                  for v, nm in [(3, "favorable"), (2, "marginal"), (1, "unfavorable")]}
         lim_counts = {nm: round(100 * float(((limiter == v) & (cls < 3)).sum() / n), 0)
-                      for v, nm in [(1, "host"), (2, "season"), (3, "moisture")]}
+                      for v, nm in [(1, "host"), (2, "season"), (3, "moisture"), (4, "lag")]}
         summary["species"][key] = {
             "label": sp["label"], "note": sp["note"],
-            "season_score": round(season, 2), "window_days": w,
+            "season_score": round(season, 2), "season_phase": season_phase(doy, sp["season"]),
+            "window_days": w, "lag_days": sp["lag_days"],
             "areas_km2": areas, "limiting_pct_of_canopy": lim_counts,
         }
         print(f"{sp['label']}")
