@@ -11,10 +11,11 @@
 # builds, pushes and repoints the function. Pass --invoke to run it once
 # afterwards and republish the app now instead of at the next 13:30 UTC run.
 #
-#   AWS_PROFILE=osc ./deploy_lambda.sh [--invoke]
+#   ./deploy_lambda.sh [--invoke]        (AWS profile defaults to osc)
 set -euo pipefail
 cd "$(dirname "$0")"
 
+export AWS_PROFILE="${AWS_PROFILE:-osc}"
 REGION="${REGION:-us-west-2}"
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
 REPO="buzzards-bay-foraging"
