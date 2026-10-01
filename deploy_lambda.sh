@@ -30,7 +30,12 @@ done
 echo "=== build + push image ==="
 aws ecr get-login-password --region "$REGION" \
   | docker login --username AWS --password-stdin "$ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
-docker build -f Dockerfile.lambda -t "$REPO:latest" .
+# Lambda only accepts a single-image manifest. Recent Docker attaches
+# provenance/SBOM attestations by default, which turns the push into an OCI
+# image index that update-function-code rejects ("media type ... is not
+# supported"), so switch them off and pin the function's architecture.
+docker build --platform linux/amd64 --provenance=false --sbom=false \
+  -f Dockerfile.lambda -t "$REPO:latest" .
 docker tag "$REPO:latest" "$IMAGE:latest"
 docker push "$IMAGE:latest"
 DIGEST="$(aws ecr describe-images --region "$REGION" --repository-name "$REPO" \
