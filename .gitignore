@@ -28,3 +28,12 @@ app/*.html
 /*.csv
 /*.png
 /*.html
+# TESSERA tiles, label cache and host rasters; tessera_hosts.py rebuilds them.
+tessera/cache/
+tessera/*.tif
+tessera/*.gpkg
+# Private reference points (includes a home location) for swale_map.py, and
+# the maps rendered from them.
+local_sites.json
+tessera/*.html
+tessera/*.png

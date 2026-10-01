@@ -1,0 +1,37 @@
+{
+  "year": 2025,
+  "block_m": 5000,
+  "balanced_accuracy": 0.894,
+  "n_train": {
+    "deciduous": 30000,
+    "evergreen": 30000,
+    "forested_wetland": 30000,
+    "bog": 30000
+  },
+  "confusion_row_normalized": {
+    "deciduous": {
+      "deciduous": 0.874,
+      "evergreen": 0.051,
+      "forested_wetland": 0.07,
+      "bog": 0.005
+    },
+    "evergreen": {
+      "deciduous": 0.044,
+      "evergreen": 0.905,
+      "forested_wetland": 0.043,
+      "bog": 0.008
+    },
+    "forested_wetland": {
+      "deciduous": 0.078,
+      "evergreen": 0.093,
+      "forested_wetland": 0.821,
+      "bog": 0.009
+    },
+    "bog": {
+      "deciduous": 0.006,
+      "evergreen": 0.014,
+      "forested_wetland": 0.005,
+      "bog": 0.975
+    }
+  }
+}
