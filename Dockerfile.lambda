@@ -27,6 +27,7 @@ COPY buzzards_bay_watershed.geojson cape_cod_watershed.geojson ${LAMBDA_TASK_ROO
 COPY soil/soil_awc25.tif soil/soil_awc.tif ${LAMBDA_TASK_ROOT}/soil/
 COPY s2/oak_index.tif ${LAMBDA_TASK_ROOT}/s2/
 COPY land/public_land.tif ${LAMBDA_TASK_ROOT}/land/
+COPY tessera/host_proba.tif ${LAMBDA_TASK_ROOT}/tessera/
 COPY lambda/handler.py ${LAMBDA_TASK_ROOT}/
 
 CMD ["handler.handler"]

@@ -45,7 +45,7 @@ WATERSHEDS = ["buzzards_bay_watershed.geojson", "cape_cod_watershed.geojson"]
 CLASS_STYLE = {3: ("#1a8f3c", "Favorable"),
                2: ("#e8a33d", "Marginal"),
                1: ("#7d5a5a", "Unfavorable")}
-LIMIT_STYLE = {1: ("#6b4c9a", "No / thin oak host"),
+LIMIT_STYLE = {1: ("#6b4c9a", "No / thin host trees, or swamp / bog"),
                2: ("#b5651d", "Wrong time of year"),
                3: ("#2b7fb8", "Too dry"),
                4: ("#3fa7a0", "Wet spell just began -- give it a few days")}

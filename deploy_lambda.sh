@@ -4,7 +4,7 @@
 # The Lambda runs its own copies of mrms_moisture.py, score_species.py and
 # make_foraging_app.py baked into a container image (Dockerfile.lambda), so a
 # git push does NOT change what runs daily -- re-run this after editing any of
-# them, or the static inputs (s2/, soil/, land/).
+# them, or the static inputs (s2/, soil/, land/, tessera/).
 #
 # The function, its IAM role (buzzards-bay-foraging-lambda), the ECR repo and
 # the buzzards-bay-foraging-daily EventBridge rule already exist; this only
@@ -22,7 +22,8 @@ REPO="buzzards-bay-foraging"
 FUNC="buzzards-bay-foraging"
 IMAGE="$ACCOUNT.dkr.ecr.$REGION.amazonaws.com/$REPO"
 
-for f in s2/oak_index.tif soil/soil_awc25.tif soil/soil_awc.tif land/public_land.tif; do
+for f in s2/oak_index.tif soil/soil_awc25.tif soil/soil_awc.tif land/public_land.tif \
+         tessera/host_proba.tif; do
   [[ -f $f ]] || { echo "missing $f -- the image bakes it in" >&2; exit 1; }
 done
 

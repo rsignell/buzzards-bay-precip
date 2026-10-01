@@ -5,8 +5,8 @@ Runs the same three scripts as run_daily.sh (mrms_moisture.py ->
 score_species.py -> make_foraging_app.py) in /tmp, then uploads the
 resulting HTML to the public Cloudflare R2 bucket instead of leaving it on
 local disk. /var/task is read-only at runtime, so the static inputs baked
-into the image (s2/, soil/, the watershed geojsons) are symlinked into a
-writable /tmp/work rather than copied.
+into the image (s2/, soil/, land/, tessera/, the watershed geojsons) are
+symlinked into a writable /tmp/work rather than copied.
 
 R2 credentials come from SSM SecureString parameters by default (the
 Lambda execution role is scoped to read only that path); R2_ACCESS_KEY_ID /
@@ -22,7 +22,7 @@ import boto3
 
 WORK = "/tmp/work"
 TASK_ROOT = os.environ.get("LAMBDA_TASK_ROOT", "/var/task")
-STATIC = ["s2", "soil", "land", "buzzards_bay_watershed.geojson", "cape_cod_watershed.geojson",
+STATIC = ["s2", "soil", "land", "tessera", "buzzards_bay_watershed.geojson", "cape_cod_watershed.geojson",
           "mrms_moisture.py", "score_species.py", "make_foraging_app.py"]
 
 R2_ENDPOINT = "https://9cbdcb4884f86a6779032ae561e474a5.r2.cloudflarestorage.com"

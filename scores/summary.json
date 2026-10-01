@@ -17,8 +17,8 @@
         "unfavorable": 1103.5
       },
       "limiting_pct_of_canopy": {
-        "host": 17.0,
-        "season": 82.0,
+        "host": 19.0,
+        "season": 80.0,
         "moisture": 1.0,
         "lag": 0.0
       }
@@ -32,14 +32,14 @@
       "lag_days": 8,
       "areas_km2": {
         "favorable": 0.0,
-        "marginal": 777.1,
-        "unfavorable": 326.5
+        "marginal": 569.0,
+        "unfavorable": 534.5
       },
       "limiting_pct_of_canopy": {
-        "host": 32.0,
-        "season": 61.0,
+        "host": 54.0,
+        "season": 42.0,
         "moisture": 2.0,
-        "lag": 5.0
+        "lag": 3.0
       }
     },
     "bolete": {
@@ -50,12 +50,12 @@
       "window_days": 14,
       "lag_days": 4,
       "areas_km2": {
-        "favorable": 822.5,
-        "marginal": 212.6,
-        "unfavorable": 68.4
+        "favorable": 662.9,
+        "marginal": 174.0,
+        "unfavorable": 266.6
       },
       "limiting_pct_of_canopy": {
-        "host": 21.0,
+        "host": 35.0,
         "season": 0.0,
         "moisture": 5.0,
         "lag": 0.0
@@ -69,12 +69,12 @@
       "window_days": 21,
       "lag_days": 3,
       "areas_km2": {
-        "favorable": 780.4,
-        "marginal": 84.6,
-        "unfavorable": 238.5
+        "favorable": 490.7,
+        "marginal": 159.8,
+        "unfavorable": 452.9
       },
       "limiting_pct_of_canopy": {
-        "host": 28.0,
+        "host": 54.0,
         "season": 0.0,
         "moisture": 1.0,
         "lag": 0.0
@@ -88,15 +88,15 @@
       "window_days": 21,
       "lag_days": 7,
       "areas_km2": {
-        "favorable": 382.7,
-        "marginal": 191.2,
-        "unfavorable": 529.6
+        "favorable": 195.7,
+        "marginal": 191.0,
+        "unfavorable": 716.8
       },
       "limiting_pct_of_canopy": {
-        "host": 58.0,
+        "host": 77.0,
         "season": 0.0,
         "moisture": 1.0,
-        "lag": 6.0
+        "lag": 4.0
       }
     }
   }

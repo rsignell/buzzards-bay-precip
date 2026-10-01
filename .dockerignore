@@ -11,5 +11,7 @@
 !s2/oak_index.tif
 !land
 !land/public_land.tif
+!tessera
+!tessera/host_proba.tif
 !lambda
 !lambda/handler.py

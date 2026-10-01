@@ -14,9 +14,15 @@ alongside the score -- "marginal because it is too dry" and "marginal because
 the oak is thin" are different messages to a forager, and only one of them is
 worth waiting out.
 
-  host      from the Sentinel-2 oak index, Cape-calibrated. Boletes also take
-            conifers, so they get the better of an oak ramp and a conifer ramp
-            derived from the same index read the other way.
+  host      how much oak canopy there is comes from the Sentinel-2 oak index,
+            Cape-calibrated. Whether it is host ground at all comes from the
+            TESSERA class probabilities (tessera_hosts.py): the oak term is
+            scaled by 1 - P(forested wetland or bog), because red maple swamp
+            is deciduous and reads as oak on the index alone (it calls half of
+            all mapped forested wetland deciduous). Boletes also take
+            conifers, so they get the better of the oak term and P(evergreen).
+            Where TESSERA has no value (~1% of canopy) the index is used alone
+            and conifer is inferred from it read the other way, as before.
   season    a day-of-year trapezoid per species.
   moisture  the minimum of two things: (1) is it sustained -- soil moisture
             and rainfall averaged over the species' window, so one downpour in
@@ -196,6 +202,19 @@ def main():
     oak10 = read("s2/oak_index.tif").values.astype("float32")
     oak = coarsen3(oak10).astype("float32")
     assert oak.shape == sm_ref.shape, f"{oak.shape} != {sm_ref.shape}"
+    del oak10
+
+    # TESSERA class probabilities, percent, same 10 m grid as the oak index.
+    # One band at a time: four float32 copies of the full 10 m grid would be
+    # 1.2 GB, which the Lambda can't spare alongside everything else.
+    with rasterio.open("tessera/host_proba.tif") as src:
+        def band(i):
+            b = src.read(i).astype("float32")
+            b[b == 255] = np.nan
+            return (coarsen3(b) / 100.0).astype("float32")
+        p_evergreen = band(2)
+        p_nonhost = np.minimum(band(3) + band(4), 1.0)   # forested wetland + bog
+    has_tessera = np.isfinite(p_nonhost)
 
     # Clip to the watersheds: the raster grid is a bbox two-thirds of which is
     # ocean and neighbouring towns, and rating ground outside the basins would
@@ -229,11 +248,18 @@ def main():
                "calibrated": False, "species": {}}
 
     for key, sp in SPECIES.items():
-        oak_term = ramp(oak, sp["oak_lo"], sp["oak_hi"])
+        # The index says how much oak; TESSERA says whether it is swamp or bog
+        # instead. Scaling (not a min against P(deciduous)) leaves dry mixed
+        # oak/pine stands nearly untouched -- they read only ~40 % deciduous
+        # but are real host ground.
+        oak_term = ramp(oak, sp["oak_lo"], sp["oak_hi"]) * np.where(
+            has_tessera, 1.0 - p_nonhost, 1.0)
         if sp["host"] == "oak_or_conifer":
-            # The same index read the other way: inside closed canopy, a low
-            # deciduous signal is conifer, and conifer hosts boletes too.
-            conifer_term = 1.0 - ramp(oak, 0.04, 0.22)
+            # Conifer directly from TESSERA. The fallback reads the index the
+            # other way (low deciduous = conifer), which also counts bogs and
+            # evergreen-shrub swamps as pine.
+            conifer_term = np.where(has_tessera, ramp(p_evergreen, 0.3, 0.7),
+                                    1.0 - ramp(oak, 0.04, 0.22))
             host = np.maximum(oak_term, conifer_term)
         else:
             host = oak_term
