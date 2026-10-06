@@ -23,7 +23,14 @@ worth waiting out.
             conifers, so they get the better of the oak term and P(evergreen).
             Where TESSERA has no value (~1% of canopy) the index is used alone
             and conifer is inferred from it read the other way, as before.
-  season    a day-of-year trapezoid per species.
+  season    a day-of-year trapezoid per species, then two temperature
+            gates from the HRRR analysis (moisture/): a hard frost
+            (moisture/days_since_frost.tif, <= -2 C) since 1 Sep ends the
+            season for every species, and species with a `cool_nights` ramp
+            (hen) also need the 7-day mean night low (moisture/tmin_mean_7.tif)
+            to have come down -- the real fall trigger, which the calendar
+            alone only approximates. A warm October no longer scores like a
+            cold one.
   moisture  the minimum of two things: (1) is it sustained -- soil moisture
             and rainfall averaged over the species' window, so one downpour in
             an otherwise dry spell doesn't read as wet; and (2) has enough
@@ -76,6 +83,8 @@ FAVORABLE, MARGINAL = 0.60, 0.35  # score thresholds for the three classes
 #              median 0.27 and an inland Oak/hickory stand 0.43, so these are
 #              deliberately lower than an inland scale would suggest.
 # season     : (start, full, end_full, end) day-of-year trapezoid
+# cool_nights: optional (none_at, full_at) deg C on the 7-day mean daily
+#              minimum: 0 credit at or above none_at, full at or below full_at
 # window     : trailing days over which moisture is judged = "is it sustained"
 # sm_lo/hi   : soil moisture fraction ramp over that window
 # rain_lo/hi : rainfall total ramp over that window, mm
@@ -122,11 +131,11 @@ SPECIES = {
     "hen": dict(
         label="Hen-of-the-woods (Grifola frondosa)",
         note="At the base of large, mature, often stressed oaks. Tight autumn "
-             "window. NOTE: the real trigger is the first run of cool nights, "
-             "which this calendar window only approximates -- no temperature "
-             "layer is wired in yet.",
+             "window, triggered by the first run of cool nights (nights in the "
+             "50s F) -- the season term below waits for them.",
         host="oak", oak_lo=0.20, oak_hi=0.40,
         season=(244, 269, 298, 314),        # Sep .. mid-Nov, peak Oct
+        cool_nights=(18.0, 13.0),           # 64 F -> 55 F mean night low
         window=21, sm_lo=0.15, sm_hi=0.38, rain_lo=20, rain_hi=50, lag_days=7,
     ),
 }
@@ -160,6 +169,23 @@ def season_phase(doy, s):
     if doy <= c:
         return "in season"
     return "season winding down"
+
+
+FALL_START = 244     # 1 Sep: a frost after this ends the season
+FROST_ENDS_SEASON = "season ended by frost"
+
+
+def phase_now(doy, sp, frost_free_frac, tmin7_median):
+    """season_phase, overridden by the temperature gates where they bind."""
+    phase = season_phase(doy, sp["season"])
+    if phase == "out of season":
+        return phase
+    if frost_free_frac < 0.5:
+        return FROST_ENDS_SEASON
+    if "cool_nights" in sp and tmin7_median > sp["cool_nights"][1]:
+        return (f"waiting for cooler nights (7-day mean low {tmin7_median:.0f} C, "
+                f"full credit at {sp['cool_nights'][1]:.0f} C)")
+    return phase
 
 
 def coarsen3(a):
@@ -240,6 +266,10 @@ def main():
     # NaN means no wet spell began anywhere in the record -- treat that as
     # "long past any lag" so the sm/rain ramps (which will themselves be low)
     # are what rules it out, not a stale lag gate.
+    tmin7 = read("moisture/tmin_mean_7.tif").values.astype("float32")
+    days_since_frost = read("moisture/days_since_frost.tif").values.astype("float32")
+    # A hard frost since 1 Sep ends the season. NaN = no frost in the record.
+    frost_ok = ~(np.nan_to_num(days_since_frost, nan=9999.0) <= doy - FALL_START)
     days_since_wetup = np.nan_to_num(
         read("moisture/days_since_wetup.tif").values.astype("float32"), nan=9999.0)
 
@@ -265,6 +295,12 @@ def main():
             host = oak_term
 
         season = season_score(doy, sp["season"])
+        season_t = np.where(frost_ok, season, 0.0).astype("float32")
+        if "cool_nights" in sp:
+            warm, cool = sp["cool_nights"]
+            # Lower nights are better, so the ramp runs backwards.
+            cool_term = ramp(warm - tmin7, 0.0, warm - cool)
+            season_t = np.minimum(season_t, np.nan_to_num(cool_term, nan=1.0))
         w = sp["window"]
         # Sustained (is the window wet enough) and lag (has enough time passed
         # since the soak) are kept as separate terms, not folded into one
@@ -274,7 +310,7 @@ def main():
                                ramp(rain[w], sp["rain_lo"], sp["rain_hi"]))
         lag = ramp(days_since_wetup, 0.0, sp["lag_days"])
 
-        terms = np.stack([host, np.full_like(host, season), sustained, lag])
+        terms = np.stack([host, season_t, sustained, lag])
         score = np.where(canopy, terms.min(axis=0), np.nan)
 
         cls = np.where(~canopy, 0,
@@ -298,7 +334,9 @@ def main():
                       for v, nm in [(1, "host"), (2, "season"), (3, "moisture"), (4, "lag")]}
         summary["species"][key] = {
             "label": sp["label"], "note": sp["note"],
-            "season_score": round(season, 2), "season_phase": season_phase(doy, sp["season"]),
+            "season_score": round(season, 2),
+            "season_phase": phase_now(doy, sp, frost_ok[canopy].mean(),
+                                      np.nanmedian(tmin7[canopy])),
             "window_days": w, "lag_days": sp["lag_days"],
             "areas_km2": areas, "limiting_pct_of_canopy": lim_counts,
         }

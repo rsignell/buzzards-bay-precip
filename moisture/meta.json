@@ -1,10 +1,12 @@
 {
-  "as_of": "2026-09-30",
+  "as_of": "2026-10-05",
   "day_ends_utc": "12:00",
-  "first_day": "2026-08-02",
-  "n_days": 150,
+  "first_day": "2026-08-08",
+  "n_days": 149,
   "spinup_days": 90,
   "source": "MRMS precipitation_surface (radar/gauge QPE), dynamical.org icechunk",
+  "temperature": "HRRR analysis temperature_2m, dynamical.org icechunk",
+  "pet": "Hargreaves from daily HRRR max/min; climatology on missing days",
   "capacity": "SSURGO available water storage 0-25 cm",
   "parameters": {
     "throughfall": 0.85,
@@ -12,6 +14,7 @@
     "pet_amp": 2.05,
     "soak_mm": 12.7,
     "dry_sm": 0.3,
+    "frost_c": -2.0,
     "min_capacity_mm": 8.0
   },
   "calibrated": false

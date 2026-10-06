@@ -46,7 +46,7 @@ CLASS_STYLE = {3: ("#1a8f3c", "Favorable"),
                2: ("#e8a33d", "Marginal"),
                1: ("#7d5a5a", "Unfavorable")}
 LIMIT_STYLE = {1: ("#6b4c9a", "No / thin host trees, or swamp / bog"),
-               2: ("#b5651d", "Wrong time of year"),
+               2: ("#b5651d", "Wrong time of year, nights still warm, or past frost"),
                3: ("#2b7fb8", "Too dry"),
                4: ("#3fa7a0", "Wet spell just began -- give it a few days")}
 # land/public_land.tif codes not-public as 1 and public as 2 (not 0/1) so that
@@ -64,6 +64,7 @@ CONTEXT = [
     # clock runs through spin-up too, and a tighter cap silently clips.
     ("soak", "moisture/days_since_wetup.tif", "days since wet spell began",
      0.0, 150.0, " d", 0),
+    ("tmin7", "moisture/tmin_mean_7.tif", "7-day mean night low", -10.0, 25.0, " °C", 1),
 ]
 
 

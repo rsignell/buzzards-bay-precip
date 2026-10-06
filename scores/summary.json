@@ -1,6 +1,6 @@
 {
-  "as_of": "2026-09-30",
-  "day_of_year": 273,
+  "as_of": "2026-10-05",
+  "day_of_year": 278,
   "rateable_canopy_km2": 1103.5,
   "calibrated": false,
   "species": {
@@ -26,38 +26,38 @@
     "black_trumpet": {
       "label": "Black trumpet (Craterellus)",
       "note": "Mycorrhizal with oak, usually in mossy, low, damp ground nearby. Wants sustained moisture even more than chanterelles and hides well in leaf litter -- look, don't just glance.",
-      "season_score": 0.48,
+      "season_score": 0.24,
       "season_phase": "season winding down",
       "window_days": 21,
       "lag_days": 8,
       "areas_km2": {
         "favorable": 0.0,
-        "marginal": 569.0,
-        "unfavorable": 534.5
+        "marginal": 0.0,
+        "unfavorable": 1103.5
       },
       "limiting_pct_of_canopy": {
-        "host": 54.0,
-        "season": 42.0,
+        "host": 40.0,
+        "season": 58.0,
         "moisture": 2.0,
-        "lag": 3.0
+        "lag": 0.0
       }
     },
     "bolete": {
       "label": "Boletes (edible Boletus spp.)",
       "note": "Mycorrhizal with both oak and pine, so pine barrens count. Flushes hard 5-14 days after rain and passes quickly.",
-      "season_score": 1.0,
-      "season_phase": "in season",
+      "season_score": 0.75,
+      "season_phase": "season winding down",
       "window_days": 14,
       "lag_days": 4,
       "areas_km2": {
-        "favorable": 662.9,
-        "marginal": 174.0,
-        "unfavorable": 266.6
+        "favorable": 647.6,
+        "marginal": 180.4,
+        "unfavorable": 275.6
       },
       "limiting_pct_of_canopy": {
         "host": 35.0,
         "season": 0.0,
-        "moisture": 5.0,
+        "moisture": 6.0,
         "lag": 0.0
       }
     },
@@ -69,8 +69,8 @@
       "window_days": 21,
       "lag_days": 3,
       "areas_km2": {
-        "favorable": 490.7,
-        "marginal": 159.8,
+        "favorable": 491.5,
+        "marginal": 159.1,
         "unfavorable": 452.9
       },
       "limiting_pct_of_canopy": {
@@ -82,21 +82,21 @@
     },
     "hen": {
       "label": "Hen-of-the-woods (Grifola frondosa)",
-      "note": "At the base of large, mature, often stressed oaks. Tight autumn window. NOTE: the real trigger is the first run of cool nights, which this calendar window only approximates -- no temperature layer is wired in yet.",
+      "note": "At the base of large, mature, often stressed oaks. Tight autumn window, triggered by the first run of cool nights (nights in the 50s F) -- the season term below waits for them.",
       "season_score": 1.0,
-      "season_phase": "in season",
+      "season_phase": "waiting for cooler nights (7-day mean low 14 C, full credit at 13 C)",
       "window_days": 21,
       "lag_days": 7,
       "areas_km2": {
-        "favorable": 195.7,
-        "marginal": 191.0,
+        "favorable": 213.0,
+        "marginal": 173.8,
         "unfavorable": 716.8
       },
       "limiting_pct_of_canopy": {
-        "host": 77.0,
-        "season": 0.0,
-        "moisture": 1.0,
-        "lag": 4.0
+        "host": 78.0,
+        "season": 1.0,
+        "moisture": 2.0,
+        "lag": 0.0
       }
     }
   }

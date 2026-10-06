@@ -14,7 +14,11 @@ mycelium and leaf litter actually live and which wets and dries far faster than
 the full 1 m root zone.
 
     S(t) = clip( S(t-1) + throughfall - AET , 0 , capacity )
-    AET  = PET(day-of-year) * S/capacity          (moisture-limited)
+    AET  = PET(t) * S/capacity                    (moisture-limited)
+    PET  = Hargreaves, from that day's HRRR 2 m air temperature max/min, so a
+           heat wave dries litter faster than an average July day and a cool,
+           cloudy spell holds it (falls back to a day-of-year climatology on
+           any day the temperature analysis is missing)
     sm   = S / capacity                           (0 = wilting, 1 = field cap)
 
 Grid is the 30 m SSURGO grid, because capacity varies at that scale while the
@@ -30,6 +34,10 @@ Outputs (under moisture/):
   sm_mean_7/14/21    mean soil moisture over trailing windows
   rain_7/14/21/30    rainfall totals over trailing windows (mm)
   days_since_soak    days since a day delivering >= SOAK_MM
+  tmin_mean_7        mean daily minimum air temperature over the last 7 days
+                     (deg C, HRRR 3 km) -- the fall "cool nights" signal
+  days_since_frost   days since the last day with a minimum <= FROST_C
+                     (deg C); NaN if none in the record
   days_since_wetup   days since the current wet spell began: the first soak
                      after the soil had dried below DRY_SM. Further soaks while
                      the ground stays wet do NOT restart it -- this is the
@@ -50,7 +58,7 @@ import pandas as pd
 import rasterio
 import rioxarray  # noqa: F401
 import xarray as xr
-from pyproj import Transformer
+from pyproj import CRS as CRS_, Transformer
 
 # --------------------------------------------------------------------------- #
 # Config
@@ -58,6 +66,12 @@ from pyproj import Transformer
 MRMS_BUCKET = "dynamical-noaa-mrms"
 MRMS_PREFIX = "noaa-mrms-conus-analysis-hourly/v0.3.0.icechunk"
 VAR = "precipitation_surface"  # radar/gauge MultiSensor QPE pass 2, kg m-2 s-1
+
+# HRRR analysis (dynamical.org): hourly 2 m air temperature, 3 km, 2014-on.
+HRRR_BUCKET = "dynamical-noaa-hrrr"
+HRRR_PREFIX = "noaa-hrrr-analysis/v0.2.0.icechunk"
+HRRR_VAR = "temperature_2m"    # deg C, instantaneous at each hourly stamp
+HRRR_PAD_M = 6000
 
 CRS = "EPSG:32619"
 BBOX_UTM = (319920, 4591950, 425820, 4662630)  # the shared 30 m habitat grid
@@ -93,6 +107,14 @@ SOAK_MM = 12.7
 # On excessively drained sand this takes ~a week of dry weather in late summer.
 DRY_SM = 0.30
 
+# A hard ("killing") frost, deg C daily minimum. Ends the fruiting season in
+# score_species.py.
+FROST_C = -2.0
+
+# Latitude for extraterrestrial radiation in Hargreaves PET. Ra varies by
+# ~1 % across this domain, so one value serves.
+PET_LAT = 41.7
+
 # Floor on bucket capacity (mm). Guards against map units with implausibly
 # small available water reporting instant saturation and instant drought.
 MIN_CAPACITY_MM = 8.0
@@ -101,6 +123,22 @@ MIN_CAPACITY_MM = 8.0
 def pet_mm(doy):
     """Climatological potential ET for a day of year, mm/day."""
     return PET_MEAN + PET_AMP * np.cos(2 * np.pi * (doy - PET_PEAK_DOY) / 365.25)
+
+
+def hargreaves_mm(tmax, tmin, doy):
+    """Hargreaves (1985) reference ET, mm/day, from daily max/min air temp (C).
+
+    Checked against the climatology above on 2026 HRRR: within ~10 % May-Aug
+    with no rescaling, and lower in a cool, cloudy Sep-Oct, as it should be.
+    """
+    lat = np.radians(PET_LAT)
+    dr = 1 + 0.033 * np.cos(2 * np.pi * doy / 365)
+    dec = 0.409 * np.sin(2 * np.pi * doy / 365 - 1.39)
+    ws = np.arccos(-np.tan(lat) * np.tan(dec))
+    ra = (24 * 60 / np.pi * 0.0820 * dr                     # MJ m-2 day-1
+          * (ws * np.sin(lat) * np.sin(dec) + np.cos(lat) * np.cos(dec) * np.sin(ws)))
+    tmean = (tmax + tmin) / 2
+    return 0.0023 * 0.408 * ra * (tmean + 17.8) * np.sqrt(np.maximum(tmax - tmin, 0))
 
 
 def target_grid():
@@ -156,6 +194,42 @@ def load_precip(lon, lat):
     return daily
 
 
+def load_temperature(days, lon, lat):
+    """Daily max/min 2 m air temperature (C) on the HRRR grid, for `days`.
+
+    Days follow the MRMS convention (ending 12 UTC), so each day's max is the
+    previous afternoon and its min the night just ended. A day short of 20
+    analysed hours is left NaN, and the bucket falls back to climatology.
+    Returns (tmax, tmin) as (day, y, x) arrays plus the 30 m -> HRRR index.
+    """
+    storage = icechunk.s3_storage(bucket=HRRR_BUCKET, prefix=HRRR_PREFIX,
+                                  region="us-west-2", anonymous=True)
+    ds = xr.open_zarr(icechunk.Repository.open(storage).readonly_session("main").store,
+                      chunks=None, decode_timedelta=True)
+    to_hrrr = Transformer.from_crs("EPSG:4326", CRS_.from_wkt(ds.spatial_ref.attrs["crs_wkt"]),
+                                   always_xy=True)
+    hx, hy = to_hrrr.transform(lon, lat)
+    start = days[0] - pd.Timedelta(hours=12)
+    sub = ds[HRRR_VAR].sel(
+        time=slice(start, days[-1] + pd.Timedelta(hours=12)),
+        x=slice(hx.min() - HRRR_PAD_M, hx.max() + HRRR_PAD_M),
+        y=slice(hy.max() + HRRR_PAD_M, hy.min() - HRRR_PAD_M),      # y descends
+    )
+    print(f"  HRRR subset {dict(sub.sizes)}; loading ...", flush=True)
+    sub = sub.load()
+    tt = pd.DatetimeIndex(sub.time.values)
+    sub = sub.assign_coords(day=("time", (tt - pd.Timedelta(hours=12)).ceil("D")))
+    g = sub.groupby("day")
+    full = g.count().min(("y", "x")) >= 20
+    tmax = g.max().where(full).reindex(day=days)
+    tmin = g.min().where(full).reindex(day=days)
+    print(f"  temperature for {int(np.isfinite(tmin.values[:, 0, 0]).sum())} of {len(days)} days")
+    xs, ys = sub.x.values, sub.y.values
+    j = np.clip(np.round((hx - xs[0]) / (xs[1] - xs[0])).astype("int32"), 0, len(xs) - 1)
+    i = np.clip(np.round((hy - ys[0]) / (ys[1] - ys[0])).astype("int32"), 0, len(ys) - 1)
+    return tmax.values.astype("float32"), tmin.values.astype("float32"), i, j
+
+
 def nearest_index(daily, lon, lat):
     """Map every 30 m cell to its MRMS cell (nearest neighbour)."""
     mlat = daily.latitude.values
@@ -208,6 +282,9 @@ def main():
     P = daily.values.astype("float32")          # (day, lat, lon), mm
     P = np.nan_to_num(P)
 
+    print("opening HRRR temperature ...")
+    tmax, tmin, ti, tj = load_temperature(days, lon, lat)
+
     # --- run the bucket ---------------------------------------------------- #
     print(f"running the bucket over {len(days)} days "
           f"({SPINUP_DAYS} of spin-up) ...", flush=True)
@@ -229,7 +306,11 @@ def main():
         armed &= ~start
         rain = P[n][i, j] * THROUGHFALL
         S = np.minimum(S + rain, cap)
-        S = np.maximum(S - pet_mm(d.dayofyear) * (S / cap), 0.0)
+        if np.isfinite(tmin[n]).all():
+            pet = hargreaves_mm(tmax[n], tmin[n], d.dayofyear)[ti, tj]
+        else:
+            pet = pet_mm(d.dayofyear)               # temperature analysis missing
+        S = np.maximum(S - pet * (S / cap), 0.0)
         sm = (S / cap).astype("float32")
         if n >= SPINUP_DAYS:
             keep.append(sm)
@@ -260,6 +341,20 @@ def main():
         write(trailing_mean(w), f"sm_mean_{w}", transform)
     write(last_soak, "days_since_soak", transform)
     write(wetup, "days_since_wetup", transform)
+
+    # --- temperature signals, on the HRRR grid then out to 30 m ----------- #
+    with np.errstate(invalid="ignore"):
+        tmin7 = np.nanmean(tmin[-7:], axis=0)
+    frosted = tmin <= FROST_C
+    last = np.where(frosted.any(axis=0),
+                    len(days) - 1 - np.argmax(frosted[::-1], axis=0), -1)
+    since_frost = np.where(last >= 0, len(days) - 1 - last, np.nan).astype("float32")
+    write(tmin7[ti, tj], "tmin_mean_7", transform)
+    write(since_frost[ti, tj], "days_since_frost", transform)
+    print(f"  7-day mean night low: median {np.nanmedian(tmin7):.1f} C "
+          f"(range {np.nanmin(tmin7):.1f} to {np.nanmax(tmin7):.1f}); "
+          f"hard frost (<= {FROST_C} C) in record: {int(frosted.any(axis=0).sum())} "
+          f"of {frosted[0].size} HRRR cells")
     # Only where there is soil: without a capacity the bucket never dries, so
     # those cells carry a meaningless record-long clock and swamp the median.
     soil = np.isfinite(cap)
@@ -280,10 +375,12 @@ def main():
         "n_days": int(len(days)),
         "spinup_days": SPINUP_DAYS,
         "source": f"MRMS {VAR} (radar/gauge QPE), dynamical.org icechunk",
+        "temperature": f"HRRR analysis {HRRR_VAR}, dynamical.org icechunk",
+        "pet": "Hargreaves from daily HRRR max/min; climatology on missing days",
         "capacity": "SSURGO available water storage 0-25 cm",
         "parameters": {"throughfall": THROUGHFALL, "pet_mean": PET_MEAN,
                        "pet_amp": PET_AMP, "soak_mm": SOAK_MM,
-                       "dry_sm": DRY_SM,
+                       "dry_sm": DRY_SM, "frost_c": FROST_C,
                        "min_capacity_mm": MIN_CAPACITY_MM},
         "calibrated": False,
     }
