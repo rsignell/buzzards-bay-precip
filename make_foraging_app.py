@@ -435,9 +435,17 @@ function read(ll) {
 map.on('click', e => read(e.latlng));
 
 document.getElementById('caveat').innerHTML =
-  `Habitat from Sentinel-2 2026 (10 m oak index, canopy-gated, tidal marsh masked) `
-  + `and SSURGO soils. Moisture from MRMS radar/gauge QPE run through a soil bucket `
-  + `whose capacity is SSURGO available water in the top 25 cm. `
+  `<b>Habitat:</b> how much oak, from a Sentinel-2 2026 leaf-on/leaf-off index `
+  + `(10 m, canopy-gated, tidal marsh masked); whether it is host ground at all, `
+  + `from TESSERA 2025 satellite embeddings (a year of Sentinel-1 radar and `
+  + `Sentinel-2 per 10 m pixel, classified against MassGIS 2016 land cover), which `
+  + `discounts red maple swamp and cranberry bog and supplies pine for boletes. `
+  + `<b>Moisture:</b> MRMS radar/gauge rainfall run through a soil bucket (capacity = `
+  + `SSURGO available water, top 25 cm) that dries at a rate set by each day's `
+  + `HRRR air temperature. The fruiting delay counts from when a wet spell began, `
+  + `so days of steady rain don't reset it. <b>Season:</b> calendar windows, plus `
+  + `HRRR temperature: a hard frost (≤ −2 °C) after 1 Sep ends the season, and `
+  + `hen-of-the-woods waits for cool nights. `
   + `<b>None of the species thresholds are calibrated</b> — there is no fruiting `
   + `record for this region to fit them to, so they encode ordinary mycological `
   + `expectations, not measured skill. Treat this as "conditions are favorable", `

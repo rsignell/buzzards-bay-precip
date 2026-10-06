@@ -37,3 +37,5 @@ tessera/*.gpkg
 local_sites.json
 tessera/*.html
 tessera/*.png
+# Private foraging log: where things were (and weren't) found.
+local_finds.csv
